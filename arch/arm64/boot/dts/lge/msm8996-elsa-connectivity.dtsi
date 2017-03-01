@@ -11,6 +11,17 @@
  * GNU General Public License for more details.
  */
 
+<<<<<<< HEAD
+=======
+&blsp1_uart2 {
+	compatible = "qcom,msm-hsuart-v14-brcmbt";
+	interrupt-names = "core_irq", "bam_irq";
+	interrupts = <0 1>;
+	interrupt-map = <0 &intc 0 0 108 0
+	                 1 &intc 0 0 238 0>;
+};
+
+>>>>>>> a297084af595... Cleanup mixed spaces and tabs, and end of line whitespace
 / {
 	/* BCMDHD for Wi-Fi */
 	bcmdhd_wifi {
@@ -33,11 +44,19 @@
 
 	bcm43xx {
 		compatible = "bcm,bcm43xx";
+<<<<<<< HEAD
                 bcm,reg-on-gpio = <&pm8994_gpios 19 0x00>; /* BT_REG_ON */
+=======
+		bcm,bt-regon-gpio = <&pm8994_gpios 19 0x00>; /* BT_REG_ON */
+		pinctrl-names = "bt_wake_host_gpio_on", "bt_wake_host_gpio_off";
+		pinctrl-0 = <&bt_wake_host_gpio_on>;
+		pinctrl-1 = <&bt_wake_host_gpio_off>;
+>>>>>>> a297084af595... Cleanup mixed spaces and tabs, and end of line whitespace
 	};
 };
 
 &tlmm {
+<<<<<<< HEAD
     /* GPIO_92 : BT_DEV_WAKE */
     msm_gpio_92: msm_gpio_92 {
         mux {
@@ -79,4 +98,24 @@
         };
     };
 
+=======
+	/* GPIO_24 : BT_HOST_WAKE */
+	bluetooth_wake_host_pin {
+		bt_wake_host_gpio_on: bt_wake_host_gpio_on {
+			config {
+				pins = "gpio24";
+				drive-strength = <2>;
+				bias-pull-up;
+			};
+		};
+
+		bt_wake_host_gpio_off: bt_wake_host_gpio_off {
+			config {
+				pins = "gpio24";
+				drive-strength = <2>;
+				bias-pull-down;
+			};
+		};
+	};
+>>>>>>> a297084af595... Cleanup mixed spaces and tabs, and end of line whitespace
 };
