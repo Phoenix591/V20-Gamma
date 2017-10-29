@@ -112,8 +112,6 @@
 			};
 		};
 
-<<<<<<< HEAD
-=======
 //[H1_BT_BRINGUP_S]
 		/* gpio pin mux for bluetooth enable pin */
 		pmx_bt_default {
@@ -132,7 +130,6 @@
 		};
 //[H1_BT_BRINGUP_E]
 
->>>>>>> a297084af595... Cleanup mixed spaces and tabs, and end of line whitespace
 		pmx_mdss: pmx_mdss {
 			mdss_dsi_active: mdss_dsi_active {
 				mux {
