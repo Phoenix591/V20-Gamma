@@ -586,6 +586,7 @@ struct msm_pcie_dev_t {
 
 	bool				 cfg_access;
 	spinlock_t			 cfg_lock;
+	unsigned long		    irqsave_flags;
 	struct mutex		     setup_lock;
 
 	struct irq_domain		*irq_domain;
@@ -3126,7 +3127,6 @@ static inline int msm_pcie_oper_conf(struct pci_bus *bus, u32 devfn, int oper,
 	int rv = 0;
 	u32 bdf = BDF_OFFSET(bus->number, devfn);
 	int i;
-	unsigned long flags;
 
 	dev = PCIE_BUS_PRIV_DATA(bus);
 
@@ -3140,7 +3140,7 @@ static inline int msm_pcie_oper_conf(struct pci_bus *bus, u32 devfn, int oper,
 	rc_idx = dev->rc_idx;
 	rc = (bus->number == 0);
 
-	spin_lock_irqsave(&dev->cfg_lock, flags);
+	spin_lock_irqsave(&dev->cfg_lock, dev->irqsave_flags);
 
 	if (!dev->cfg_access) {
 		PCIE_DBG3(dev,
@@ -3233,7 +3233,7 @@ static inline int msm_pcie_oper_conf(struct pci_bus *bus, u32 devfn, int oper,
 	}
 
 unlock:
-	spin_unlock_irqrestore(&dev->cfg_lock, flags);
+	spin_unlock_irqrestore(&dev->cfg_lock, dev->irqsave_flags);
 out:
 	return rv;
 }
@@ -4956,6 +4956,7 @@ int msm_pcie_enumerate(u32 rc_idx)
 			pci_assign_unassigned_bus_resources(bus);
 			pci_bus_add_devices(bus);
 
+			dev->enumerated = true;
 
 			msm_pcie_write_mask(dev->dm_core +
 				PCIE20_COMMAND_STATUS, 0, BIT(2)|BIT(1));
@@ -4996,8 +4997,6 @@ int msm_pcie_enumerate(u32 rc_idx)
 
 			bus_ret = bus_for_each_dev(&pci_bus_type, NULL, dev,
 					&msm_pcie_config_device_table);
-
-			dev->enumerated = true;
 
 			if (bus_ret) {
 				PCIE_ERR(dev,
@@ -6405,7 +6404,6 @@ static int msm_pcie_pm_suspend(struct pci_dev *dev,
 	int ret = 0;
 	u32 val = 0;
 	int ret_l23;
-	unsigned long flags;
 	unsigned long irqsave_flags;
 	struct msm_pcie_dev_t *pcie_dev = PCIE_BUS_PRIV_DATA(dev->bus);
 
@@ -6435,10 +6433,10 @@ static int msm_pcie_pm_suspend(struct pci_dev *dev,
 	}
 
 	spin_lock_irqsave(&pcie_dev->cfg_lock,
-				flags);
+				pcie_dev->irqsave_flags);
 	pcie_dev->cfg_access = false;
 	spin_unlock_irqrestore(&pcie_dev->cfg_lock,
-				flags);
+				pcie_dev->irqsave_flags);
 
 	msm_pcie_write_mask(pcie_dev->elbi + PCIE20_ELBI_SYS_CTRL, 0,
 				BIT(4));
@@ -6475,7 +6473,6 @@ static void msm_pcie_fixup_suspend(struct pci_dev *dev)
 {
 	int ret;
 	struct msm_pcie_dev_t *pcie_dev = PCIE_BUS_PRIV_DATA(dev->bus);
-	unsigned long flags;
 
 	PCIE_DBG(pcie_dev, "RC%d\n", pcie_dev->rc_idx);
 
@@ -6483,17 +6480,17 @@ static void msm_pcie_fixup_suspend(struct pci_dev *dev)
 		return;
 
 	spin_lock_irqsave(&pcie_dev->cfg_lock,
-				flags);
+				pcie_dev->irqsave_flags);
 	if (pcie_dev->disable_pc) {
 		PCIE_DBG(pcie_dev,
 			"RC%d: Skip suspend because of user request\n",
 			pcie_dev->rc_idx);
 		spin_unlock_irqrestore(&pcie_dev->cfg_lock,
-				flags);
+				pcie_dev->irqsave_flags);
 		return;
 	}
 	spin_unlock_irqrestore(&pcie_dev->cfg_lock,
-				flags);
+				pcie_dev->irqsave_flags);
 
 	mutex_lock(&pcie_dev->recovery_lock);
 
@@ -6513,7 +6510,6 @@ static int msm_pcie_pm_resume(struct pci_dev *dev,
 {
 	int ret;
 	struct msm_pcie_dev_t *pcie_dev = PCIE_BUS_PRIV_DATA(dev->bus);
-	unsigned long flags;
 
 	PCIE_DBG(pcie_dev, "RC%d: entry\n", pcie_dev->rc_idx);
 
@@ -6522,10 +6518,10 @@ static int msm_pcie_pm_resume(struct pci_dev *dev,
 					pcie_dev->pins_default);
 
 	spin_lock_irqsave(&pcie_dev->cfg_lock,
-				flags);
+				pcie_dev->irqsave_flags);
 	pcie_dev->cfg_access = true;
 	spin_unlock_irqrestore(&pcie_dev->cfg_lock,
-				flags);
+				pcie_dev->irqsave_flags);
 
 	ret = msm_pcie_enable(pcie_dev, PM_PIPE_CLK | PM_CLK | PM_VREG);
 	if (ret) {
@@ -6623,7 +6619,6 @@ int msm_pcie_pm_control(enum msm_pcie_pm_opt pm_opt, u32 busnr, void *user,
 	struct pci_dev *dev;
 	u32 rc_idx = 0;
 	struct msm_pcie_dev_t *pcie_dev;
-	unsigned long flags;
 
 	PCIE_GEN_DBG("PCIe: pm_opt:%d;busnr:%d;options:%d\n",
 		pm_opt, busnr, options);
@@ -6762,7 +6757,7 @@ int msm_pcie_pm_control(enum msm_pcie_pm_opt pm_opt, u32 busnr, void *user,
 			"User of RC%d requests to keep the link always alive.\n",
 			rc_idx);
 		spin_lock_irqsave(&msm_pcie_dev[rc_idx].cfg_lock,
-				flags);
+				msm_pcie_dev[rc_idx].irqsave_flags);
 		if (msm_pcie_dev[rc_idx].suspending) {
 			PCIE_ERR(&msm_pcie_dev[rc_idx],
 				"PCIe: RC%d Link has been suspended before request\n",
@@ -6772,17 +6767,17 @@ int msm_pcie_pm_control(enum msm_pcie_pm_opt pm_opt, u32 busnr, void *user,
 			msm_pcie_dev[rc_idx].disable_pc = true;
 		}
 		spin_unlock_irqrestore(&msm_pcie_dev[rc_idx].cfg_lock,
-				flags);
+				msm_pcie_dev[rc_idx].irqsave_flags);
 		break;
 	case MSM_PCIE_ENABLE_PC:
 		PCIE_DBG(&msm_pcie_dev[rc_idx],
 			"User of RC%d cancels the request of alive link.\n",
 			rc_idx);
 		spin_lock_irqsave(&msm_pcie_dev[rc_idx].cfg_lock,
-				flags);
+				msm_pcie_dev[rc_idx].irqsave_flags);
 		msm_pcie_dev[rc_idx].disable_pc = false;
 		spin_unlock_irqrestore(&msm_pcie_dev[rc_idx].cfg_lock,
-				flags);
+				msm_pcie_dev[rc_idx].irqsave_flags);
 		break;
 	default:
 		PCIE_ERR(&msm_pcie_dev[rc_idx],

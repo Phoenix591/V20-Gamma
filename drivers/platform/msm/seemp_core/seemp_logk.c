@@ -146,15 +146,13 @@ void *seemp_logk_kernel_start_record(char **buf)
 
 void seemp_logk_kernel_end_record(void *blck)
 {
-	int current_uid_val = 0;
-
 	struct seemp_logk_blk *blk = (struct seemp_logk_blk *)blck;
 
 	if (blk) {
 		/*update status at the very end*/
 		blk->status |= 0x1;
-               current_uid_val = (current_uid()).val;
-		blk->uid = current_uid_val;
+		blk->uid =  (current_uid()).val;
+
 		ringbuf_finish_writer(slogk_dev, blk);
 	}
 }
@@ -679,3 +677,4 @@ module_exit(seemp_logk_cleanup);
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("seemp Observer");
+

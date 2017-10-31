@@ -34,11 +34,6 @@
 #include <linux/pinctrl/consumer.h>
 #include <linux/syscore_ops.h>
 
-#if defined(CONFIG_LGE_HANDLE_PANIC)
-#include <soc/qcom/lge/lge_handle_panic.h>
-#endif
-
-#define CONFIG_LGE_HALL_IC
 #ifdef CONFIG_LGE_HALL_IC
 #include <linux/switch.h>
 struct switch_dev hallic_sdev = {
@@ -383,11 +378,6 @@ static void gpio_keys_gpio_report_event(struct gpio_button_data *bdata)
 		input_event(input, type, button->code, !!state);
 
 		pr_err("%s: code(%d) state(%d)\n", __func__, button->code, !!state);
-
-#if defined(CONFIG_LGE_HANDLE_PANIC)
-		if(!!state)
-			lge_gen_key_panic(button->code);
-#endif
 
 #ifdef CONFIG_LGE_HALL_IC
 		if (!strncmp(bdata->button->desc, "hall_ic", 7)){

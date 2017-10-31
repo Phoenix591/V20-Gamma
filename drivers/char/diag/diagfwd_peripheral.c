@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,7 +30,6 @@
 #include "diagfwd_socket.h"
 #include "diag_mux.h"
 #include "diag_ipc_logging.h"
-#include "mts_tty.h"
 
 struct data_header {
 	uint8_t control_char;
@@ -241,8 +240,6 @@ static void diagfwd_data_read_done(struct diagfwd_info *fwd_info,
 
 	mutex_lock(&driver->hdlc_disable_mutex);
 	mutex_lock(&fwd_info->data_mutex);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:hdlc_disable_mutex obtained ", __LINE__);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:data_mutex obtained ", __LINE__);
 	session_info = diag_md_session_get_peripheral(fwd_info->peripheral);
 	if (session_info)
 		hdlc_disabled = session_info->hdlc_disabled;
@@ -310,11 +307,6 @@ static void diagfwd_data_read_done(struct diagfwd_info *fwd_info,
 	}
 
 	if (write_len > 0) {
-		if (mts_tty->run) {
-			if (fwd_info->type == TYPE_DATA)
-				mts_tty_process(write_buf, write_len);
-			goto end;
-		}
 		err = diag_mux_write(DIAG_LOCAL_PROC, write_buf, write_len,
 				     temp_buf->ctxt);
 		if (err) {
@@ -325,8 +317,6 @@ static void diagfwd_data_read_done(struct diagfwd_info *fwd_info,
 	}
 	mutex_unlock(&fwd_info->data_mutex);
 	mutex_unlock(&driver->hdlc_disable_mutex);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:hdlc_disable_mutex released ", __LINE__);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:data_mutex released ", __LINE__);
 	diagfwd_queue_read(fwd_info);
 	return;
 
@@ -652,7 +642,7 @@ void diagfwd_close_transport(uint8_t transport, uint8_t peripheral)
 		return;
 	}
 
-	mutex_lock(&driver->diagfwd_channel_mutex);
+	mutex_lock(&driver->diagfwd_channel_mutex[peripheral]);
 	fwd_info = &early_init_info[transport][peripheral];
 	if (fwd_info->p_ops && fwd_info->p_ops->close)
 		fwd_info->p_ops->close(fwd_info->ctxt);
@@ -674,8 +664,7 @@ void diagfwd_close_transport(uint8_t transport, uint8_t peripheral)
 		diagfwd_late_open(dest_info);
 	diagfwd_cntl_open(dest_info);
 	init_fn(peripheral);
-	mutex_unlock(&driver->diagfwd_channel_mutex);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:diagfwd_channel_mutex released ", __LINE__);
+	mutex_unlock(&driver->diagfwd_channel_mutex[peripheral]);
 	diagfwd_queue_read(&peripheral_info[TYPE_DATA][peripheral]);
 	diagfwd_queue_read(&peripheral_info[TYPE_CMD][peripheral]);
 }
@@ -837,7 +826,6 @@ int diagfwd_channel_close(struct diagfwd_info *fwd_info)
 {
 	if (!fwd_info)
 		return -EIO;
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS, "\n");
 
 	fwd_info->ch_open = 0;
 	if (fwd_info && fwd_info->c_ops && fwd_info->c_ops->close)
@@ -920,8 +908,6 @@ void diagfwd_channel_read(struct diagfwd_info *fwd_info)
 	}
 
 	if (fwd_info->buf_1 && !atomic_read(&fwd_info->buf_1->in_busy)) {
-		temp_buf = fwd_info->buf_1;
-		atomic_set(&temp_buf->in_busy, 1);
 		if (driver->feature[fwd_info->peripheral].encode_hdlc &&
 		    (fwd_info->type == TYPE_DATA ||
 		     fwd_info->type == TYPE_CMD)) {
@@ -931,9 +917,11 @@ void diagfwd_channel_read(struct diagfwd_info *fwd_info)
 			read_buf = fwd_info->buf_1->data;
 			read_len = fwd_info->buf_1->len;
 		}
+		if (read_buf) {
+			temp_buf = fwd_info->buf_1;
+			atomic_set(&temp_buf->in_busy, 1);
+		}
 	} else if (fwd_info->buf_2 && !atomic_read(&fwd_info->buf_2->in_busy)) {
-		temp_buf = fwd_info->buf_2;
-		atomic_set(&temp_buf->in_busy, 1);
 		if (driver->feature[fwd_info->peripheral].encode_hdlc &&
 		    (fwd_info->type == TYPE_DATA ||
 		     fwd_info->type == TYPE_CMD)) {
@@ -942,6 +930,10 @@ void diagfwd_channel_read(struct diagfwd_info *fwd_info)
 		} else {
 			read_buf = fwd_info->buf_2->data;
 			read_len = fwd_info->buf_2->len;
+		}
+		if (read_buf) {
+			temp_buf = fwd_info->buf_2;
+			atomic_set(&temp_buf->in_busy, 1);
 		}
 	} else {
 		pr_debug("diag: In %s, both buffers are empty for p: %d, t: %d\n",
@@ -1107,28 +1099,21 @@ static void diagfwd_buffers_exit(struct diagfwd_info *fwd_info)
 
 	mutex_lock(&fwd_info->buf_mutex);
 	if (fwd_info->buf_1) {
-		if (fwd_info->buf_1->data) {
-			kfree(fwd_info->buf_1->data);
-			fwd_info->buf_1->data = NULL;
-		}
-		if (fwd_info->buf_1->data_raw) {
-			kfree(fwd_info->buf_1->data_raw);
-			fwd_info->buf_1->data_raw = NULL;
-		}
+		kfree(fwd_info->buf_1->data);
+		fwd_info->buf_1->data = NULL;
+		kfree(fwd_info->buf_1->data_raw);
+		fwd_info->buf_1->data_raw = NULL;
 		kfree(fwd_info->buf_1);
 		fwd_info->buf_1 = NULL;
 	}
 	if (fwd_info->buf_2) {
-		if (fwd_info->buf_2->data) {
-			kfree(fwd_info->buf_2->data);
-			fwd_info->buf_2->data = NULL;
-		}
-		if (fwd_info->buf_2->data_raw) {
-			kfree(fwd_info->buf_2->data_raw);
-			fwd_info->buf_2->data_raw = NULL;
-		}
+		kfree(fwd_info->buf_2->data);
+		fwd_info->buf_2->data = NULL;
+		kfree(fwd_info->buf_2->data_raw);
+		fwd_info->buf_2->data_raw = NULL;
 		kfree(fwd_info->buf_2);
 		fwd_info->buf_2 = NULL;
 	}
 	mutex_unlock(&fwd_info->buf_mutex);
 }
+

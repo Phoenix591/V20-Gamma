@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -51,6 +51,12 @@
 	((flags & MDSS_MDP_RIGHT_MIXER) || (dst_x >= left_lm_w))
 
 #define BUF_POOL_SIZE 32
+
+#define DFPS_DATA_MAX_HFP 8192
+#define DFPS_DATA_MAX_HBP 8192
+#define DFPS_DATA_MAX_HPW 8192
+#define DFPS_DATA_MAX_FPS 0x7fffffff
+#define DFPS_DATA_MAX_CLK_RATE 250000
 
 #ifdef CONFIG_LGE_PP_SUPPORT_WITH_PARTIAL_UPDATE
 static int color_convert_enabled = 0;
@@ -1415,41 +1421,30 @@ if( mfd->panel_info->type == MIPI_CMD_PANEL )
 	 * runtime device which will be released when overlay is turned off
 	 */
 #ifdef DISABLE_IDLE_PC_FIRST_UPDATE
-if( mfd->panel_info->type == MIPI_CMD_PANEL )
-{ 	if(count == 0) {
-		rc = pm_runtime_get_sync(&mfd->pdev->dev);
-		count++;
-	   if (IS_ERR_VALUE(rc)) {
-			pr_err("unable to resume with pm_runtime_get_sync rc=%d\n",
-				rc);
-			goto end;
-	   }
-	 }
-}
-else
-{
-	if (!mdp5_data->mdata->idle_pc_enabled ||
-		(mfd->panel_info->type != MIPI_CMD_PANEL)) {
-		rc = pm_runtime_get_sync(&mfd->pdev->dev);
-		if (IS_ERR_VALUE(rc)) {
-			pr_err("unable to resume with pm_runtime_get_sync rc=%d\n",
-				rc);
-			goto end;
-	         }
-	 }
-}
-
-#else
-	if (!mdp5_data->mdata->idle_pc_enabled ||
-		(mfd->panel_info->type != MIPI_CMD_PANEL)) {
-		rc = pm_runtime_get_sync(&mfd->pdev->dev);
-		if (IS_ERR_VALUE(rc)) {
-			pr_err("unable to resume with pm_runtime_get_sync rc=%d\n",
-				rc);
-			goto end;
-	         }
-	 }
+ 	if (mfd->panel_info->type == MIPI_CMD_PANEL) {
+ 	 	if(count == 0) {
+		 	rc = pm_runtime_get_sync(&mfd->pdev->dev);
+		 	count++;
+	    	if (IS_ERR_VALUE(rc)) {
+			 	 	pr_err("unable to resume with pm_runtime_get_sync rc=%d\n", rc);
+			 	 	goto end;
+	    	}
+	  	}
+ 	} else {
 #endif
+	if (!mdp5_data->mdata->idle_pc_enabled ||
+		(mfd->panel_info->type != MIPI_CMD_PANEL)) {
+		rc = pm_runtime_get_sync(&mfd->pdev->dev);
+		if (IS_ERR_VALUE(rc)) {
+			pr_err("unable to resume with pm_runtime_get_sync rc=%d\n",
+				rc);
+			goto end;
+		}
+	}
+#ifdef DISABLE_IDLE_PC_FIRST_UPDATE
+ 	}
+#endif
+
 	/*
 	 * We need to do hw init before any hw programming.
 	 * Also, hw init involves programming the VBIF registers which
@@ -1515,6 +1510,21 @@ static void mdss_mdp_overlay_update_pm(struct mdss_overlay_private *mdp5_data)
 		return;
 
 	activate_event_timer(mdp5_data->cpu_pm_hdl, wakeup_time);
+}
+
+static void __unstage_pipe_and_clean_buf(struct msm_fb_data_type *mfd,
+		struct mdss_mdp_pipe *pipe, struct mdss_mdp_data *buf)
+{
+
+	pr_debug("unstaging pipe:%d rect:%d buf:%d\n",
+			pipe->num, pipe->multirect.num, !buf);
+	MDSS_XLOG(pipe->num, pipe->multirect.num, !buf);
+	mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_left);
+	mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_right);
+	pipe->dirty = true;
+
+	if (buf)
+		__pipe_buf_mark_cleanup(mfd, buf);
 }
 
 static int __overlay_queue_pipes(struct msm_fb_data_type *mfd)
@@ -1628,7 +1638,6 @@ static int __overlay_queue_pipes(struct msm_fb_data_type *mfd)
 				pipe->num);
 			ret = -EINVAL;
 		}
-
 		/*
 		 * if we reach here without errors and buf == NULL
 		 * then solid fill will be set
@@ -1637,14 +1646,36 @@ static int __overlay_queue_pipes(struct msm_fb_data_type *mfd)
 			ret = mdss_mdp_pipe_queue_data(pipe, buf);
 
 		if (IS_ERR_VALUE(ret)) {
-			pr_warn("Unable to queue data for pnum=%d\n",
-					pipe->num);
-			mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_left);
-			mdss_mdp_mixer_pipe_unstage(pipe, pipe->mixer_right);
-			pipe->dirty = true;
+			pr_warn("Unable to queue data for pnum=%d rect=%d\n",
+					pipe->num, pipe->multirect.num);
 
-			if (buf)
-				__pipe_buf_mark_cleanup(mfd, buf);
+			/*
+			 * If we fail for a multi-rect pipe, unstage both rects
+			 * so we don't leave the pipe configured in multi-rect
+			 * mode with only one rectangle staged.
+			 */
+			if (pipe->multirect.mode !=
+					MDSS_MDP_PIPE_MULTIRECT_NONE) {
+				struct mdss_mdp_pipe *next_pipe =
+					(struct mdss_mdp_pipe *)
+					pipe->multirect.next;
+
+				if (next_pipe) {
+					struct mdss_mdp_data *next_buf =
+						list_first_entry_or_null(
+							&next_pipe->buf_queue,
+							struct mdss_mdp_data,
+							pipe_list);
+
+					__unstage_pipe_and_clean_buf(mfd,
+							next_pipe, next_buf);
+				} else {
+					pr_warn("cannot find rect pnum=%d\n",
+							pipe->num);
+				}
+			}
+
+			__unstage_pipe_and_clean_buf(mfd, pipe, buf);
 		}
 	}
 
@@ -1951,7 +1982,7 @@ static void __validate_and_set_roi(struct msm_fb_data_type *mfd,
 		goto set_roi;
 
 	if (!memcmp(&commit->l_roi, &tmp_roi, sizeof(tmp_roi)) &&
-			!memcmp(&commit->r_roi, &tmp_roi, sizeof(tmp_roi)))
+	    !memcmp(&commit->r_roi, &tmp_roi, sizeof(tmp_roi)))
 		goto set_roi;
 #endif
 
@@ -2334,6 +2365,7 @@ commit_fail:
 		mutex_unlock(ctl->shared_lock);
 	mdss_iommu_ctrl(0);
 	ATRACE_END(__func__);
+
 	return ret;
 }
 
@@ -3258,6 +3290,13 @@ static ssize_t dynamic_fps_sysfs_wta_dfps(struct device *dev,
 		return count;
 	}
 
+	if (data.hfp > DFPS_DATA_MAX_HFP || data.hbp > DFPS_DATA_MAX_HBP ||
+		data.hpw > DFPS_DATA_MAX_HPW || data.fps > DFPS_DATA_MAX_FPS ||
+		data.clk_rate > DFPS_DATA_MAX_CLK_RATE){
+		pr_err("Data values out of bound.\n");
+		return -EINVAL;
+	}
+
 	rc = mdss_mdp_dfps_update_params(mfd, pdata, &data);
 	if (rc) {
 		pr_err("failed to set dfps params\n");
@@ -4026,7 +4065,7 @@ static int mdss_mdp_hw_cursor_pipe_update(struct msm_fb_data_type *mfd,
 	if (!mfd->cursor_buf && (cursor->set & FB_CUR_SETIMAGE)) {
 		ret = mdss_smmu_dma_alloc_coherent(&pdev->dev,
 			cursor_frame_size, (dma_addr_t *) &mfd->cursor_buf_phys,
-			&mfd->cursor_buf_iova, mfd->cursor_buf,
+			&mfd->cursor_buf_iova, &mfd->cursor_buf,
 			GFP_KERNEL, MDSS_IOMMU_DOMAIN_UNSECURE);
 		if (ret) {
 			pr_err("can't allocate cursor buffer rc:%d\n", ret);
@@ -4068,12 +4107,21 @@ static int mdss_mdp_hw_cursor_pipe_update(struct msm_fb_data_type *mfd,
 		start_y = 0;
 	}
 
+	if ((img->width > mdata->max_cursor_size) ||
+		(img->height > mdata->max_cursor_size) ||
+		(img->depth != 32) || (start_x >= xres) ||
+		(start_y >= yres)) {
+		pr_err("Invalid cursor image coordinates\n");
+		ret = -EINVAL;
+		goto done;
+	}
+
 	roi.w = min(xres - start_x, img->width - roi.x);
 	roi.h = min(yres - start_y, img->height - roi.y);
 
 	if ((roi.w > mdata->max_cursor_size) ||
-		(roi.h > mdata->max_cursor_size) ||
-		(img->depth != 32) || (start_x >= xres) || (start_y >= yres)) {
+		(roi.h > mdata->max_cursor_size)) {
+		pr_err("Invalid cursor ROI size\n");
 		ret = -EINVAL;
 		goto done;
 	}
@@ -4104,6 +4152,12 @@ static int mdss_mdp_hw_cursor_pipe_update(struct msm_fb_data_type *mfd,
 	req->transp_mask = img->bg_color & ~(0xff << var->transp.offset);
 
 	if (mfd->cursor_buf && (cursor->set & FB_CUR_SETIMAGE)) {
+		if (img->width * img->height * 4 > cursor_frame_size) {
+			pr_err("cursor image size is too large\n");
+			ret = -EINVAL;
+			goto done;
+		}
+
 		ret = copy_from_user(mfd->cursor_buf, img->data,
 				     img->width * img->height * 4);
 		if (ret) {
@@ -4205,7 +4259,7 @@ static int mdss_mdp_hw_cursor_update(struct msm_fb_data_type *mfd,
 	if (!mfd->cursor_buf && (cursor->set & FB_CUR_SETIMAGE)) {
 		ret = mdss_smmu_dma_alloc_coherent(&pdev->dev,
 			cursor_frame_size, (dma_addr_t *) &mfd->cursor_buf_phys,
-			&mfd->cursor_buf_iova, mfd->cursor_buf,
+			&mfd->cursor_buf_iova, &mfd->cursor_buf,
 			GFP_KERNEL, MDSS_IOMMU_DOMAIN_UNSECURE);
 		if (ret) {
 			pr_err("can't allocate cursor buffer rc:%d\n", ret);
@@ -4253,7 +4307,7 @@ static int mdss_mdp_hw_cursor_update(struct msm_fb_data_type *mfd,
 
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON);
 
-	if (cursor->set & FB_CUR_SETIMAGE) {
+	if (mfd->cursor_buf && (cursor->set & FB_CUR_SETIMAGE)) {
 		u32 cursor_addr;
 		ret = copy_from_user(mfd->cursor_buf, img->data,
 				     img->width * img->height * 4);
@@ -4331,8 +4385,10 @@ static int mdss_bl_scale_config(struct msm_fb_data_type *mfd,
 	pr_debug("update scale = %d, min_lvl = %d\n", mfd->bl_scale,
 							mfd->bl_min_lvl);
 
-	/* update current backlight to use new scaling*/
-	mdss_fb_set_backlight(mfd, curr_bl);
+	/* Update current backlight to use new scaling, if it is not zero */
+	if (curr_bl)
+		mdss_fb_set_backlight(mfd, curr_bl);
+
 	mutex_unlock(&mfd->bl_lock);
 	return ret;
 }
@@ -4603,9 +4659,10 @@ static int mdss_fb_get_metadata(struct msm_fb_data_type *mfd,
 		ret = mdss_fb_get_hw_caps(mfd, &metadata->data.caps);
 		break;
 	case metadata_op_get_ion_fd:
-		if (mfd->fb_ion_handle) {
+		if (mfd->fb_ion_handle && mfd->fb_ion_client) {
 			metadata->data.fbmem_ionfd =
-				dma_buf_fd(mfd->fbmem_buf, 0);
+				ion_share_dma_buf_fd(mfd->fb_ion_client,
+					mfd->fb_ion_handle);
 			if (metadata->data.fbmem_ionfd < 0)
 				pr_err("fd allocation failed. fd = %d\n",
 						metadata->data.fbmem_ionfd);
@@ -6117,7 +6174,6 @@ int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd)
 
 	if (mdss_mdp_pp_overlay_init(mfd))
 		pr_warn("Failed to initialize pp overlay data.\n");
-
 	return rc;
 init_fail:
 	kfree(mdp5_data);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -21,7 +21,6 @@
 
 #include "mdss_dsi.h"
 #include "mdss_edp.h"
-#include "mdss_debug.h"
 #include "mdss_dsi_phy.h"
 
 #define MDSS_DSI_DSIPHY_REGULATOR_CTRL_0	0x00
@@ -501,8 +500,6 @@ void mdss_dsi_phy_sw_reset(struct mdss_dsi_ctrl_pdata *ctrl)
 
 	}
 	mutex_unlock(&sdata->phy_reg_lock);
-
-	MDSS_XLOG(ctrl->ndx, sctrl ? sctrl->ndx : 0xff);
 
 	if ((sdata->hw_rev == MDSS_DSI_HW_REV_103) &&
 		!mdss_dsi_is_hw_config_dual(sdata) &&
@@ -1043,9 +1040,9 @@ static void mdss_dsi_8996_phy_config(struct mdss_dsi_ctrl_pdata *ctrl)
 
 		/* test str */
 #ifdef CONFIG_LGE_DISPLAY_BL_EXTENDED
-		MIPI_OUTP(base + 0x14, 0x00ff);    /* fixed */
+		MIPI_OUTP(base + 0x14, 0x00ff);	/* fixed */
 #else
-		MIPI_OUTP(base + 0x14, 0x0088);    /* fixed */
+		MIPI_OUTP(base + 0x14, 0x0088);	/* fixed */
 #endif
 
 		/* phy timing, 8 * 5 */
@@ -1202,10 +1199,8 @@ void mdss_dsi_phy_disable(struct mdss_dsi_ctrl_pdata *ctrl)
 
 void mdss_dsi_phy_init(struct mdss_dsi_ctrl_pdata *ctrl)
 {
-	MDSS_XLOG(ctrl ? ctrl->ndx : 0xff);
 	mdss_dsi_phy_regulator_ctrl(ctrl, true);
 	mdss_dsi_phy_ctrl(ctrl, true);
-	MDSS_XLOG(ctrl->ndx, MIPI_INP(ctrl->phy_io.base + 0x10));
 }
 
 void mdss_dsi_core_clk_deinit(struct device *dev, struct dsi_shared_data *sdata)
@@ -1696,7 +1691,6 @@ static bool mdss_dsi_is_ulps_req_valid(struct mdss_dsi_ctrl_pdata *ctrl,
  * DSI Ultra-Low Power State (ULPS). This function assumes that the link and
  * core clocks are already on.
  */
-
 static int mdss_dsi_ulps_config(struct mdss_dsi_ctrl_pdata *ctrl,
 	int enable)
 {
@@ -1806,8 +1800,10 @@ static int mdss_dsi_ulps_config(struct mdss_dsi_ctrl_pdata *ctrl,
 		 * to be in stop state.
 		 */
 		MIPI_OUTP(ctrl->ctrl_base + 0x0AC, active_lanes << 16);
+		wmb(); /* ensure lanes are put to stop state */
 
 		MIPI_OUTP(ctrl->ctrl_base + 0x0AC, 0x0);
+		wmb(); /* ensure lanes are in proper state */
 
 		/*
 		 * Wait for a short duration before enabling
@@ -1857,8 +1853,6 @@ static int mdss_dsi_clamp_ctrl(struct mdss_dsi_ctrl_pdata *ctrl, int enable)
 		pr_err("%s: mmss_misc_io not mapped\n", __func__);
 		return -EINVAL;
 	}
-
-	MDSS_XLOG(ctrl->ndx, enable);
 
 	clamp_reg_off = ctrl->shared_data->ulps_clamp_ctrl_off;
 	phyrst_reg_off = ctrl->shared_data->ulps_phyrst_ctrl_off;
@@ -2216,7 +2210,6 @@ int mdss_dsi_post_clkon_cb(void *priv,
 		if (ctrl->phy_power_off || mmss_clamp)
 			mdss_dsi_phy_power_on(ctrl, mmss_clamp);
 	}
-	MDSS_XLOG(ctrl->ndx, MIPI_INP(ctrl->phy_io.base + 0x10));
 	if (clk & MDSS_DSI_LINK_CLK) {
 		if (ctrl->ulps) {
 			rc = mdss_dsi_ulps_config(ctrl, 0);
@@ -2266,7 +2259,6 @@ int mdss_dsi_post_clkoff_cb(void *priv,
 			} else {
 				ctrl->core_power = false;
 			}
-			MDSS_XLOG(ctrl->ndx, ctrl->core_power);
 		}
 	}
 	return rc;
@@ -2316,7 +2308,7 @@ int mdss_dsi_pre_clkon_cb(void *priv,
 			} else {
 				ctrl->core_power = true;
 			}
-			MDSS_XLOG(ctrl->ndx, ctrl->core_power);
+
 		}
 	}
 

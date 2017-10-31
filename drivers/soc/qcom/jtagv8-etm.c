@@ -1601,7 +1601,7 @@ static int jtag_mm_etm_probe(struct platform_device *pdev, uint32_t cpu)
 	spin_lock_init(&etmdata->spinlock);
 	mutex_init(&etmdata->mutex);
 
-	if (++cnt >= nr_cpu_ids)
+	if (cnt++ == 0)
 		register_hotcpu_notifier(&jtag_mm_etm_notifier);
 
 	get_online_cpus();

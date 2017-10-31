@@ -1516,7 +1516,6 @@ static int ssr(struct glink_transport_if *if_ptr)
 	struct intent_info *intent;
 	unsigned long flags;
 
-	trace_printk("QMCK %s start \n", __func__);
 	einfo = container_of(if_ptr, struct edge_info, xprt_if);
 
 	einfo->in_ssr = true;
@@ -1660,9 +1659,6 @@ static int tx_cmd_local_rx_intent(struct glink_transport_if *if_ptr,
 	struct channel *ch;
 	struct intent_info *intent;
 	int rcu_id;
-#if CONFIG_MACH_LGE
-	bool found = false;
-#endif
 	unsigned long flags;
 
 	einfo = container_of(if_ptr, struct edge_info, xprt_if);
@@ -1675,25 +1671,10 @@ static int tx_cmd_local_rx_intent(struct glink_transport_if *if_ptr,
 
 	spin_lock_irqsave(&einfo->channels_lock, flags);
 	list_for_each_entry(ch, &einfo->channels, node) {
-		if (lcid == ch->lcid) {
-#if CONFIG_MACH_LGE
-			found = true;
-#endif
+		if (lcid == ch->lcid)
 			break;
-		}
 	}
-
 	spin_unlock_irqrestore(&einfo->channels_lock, flags);
-
-#if CONFIG_MACH_LGE
-	if (!found) {
-		SMDXPRT_ERR(einfo,
-			"%s No matching local channel for lcid %u\n",
-			__func__, lcid);
-		srcu_read_unlock(&einfo->ssr_sync, rcu_id);
-		return -ENODEV;
-	}
-#endif
 
 	intent = kmalloc(sizeof(*intent), GFP_KERNEL);
 	if (!intent) {

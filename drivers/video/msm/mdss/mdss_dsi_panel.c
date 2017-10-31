@@ -721,7 +721,6 @@ end:
 	return 0;
 }
 
-#ifdef CONFIG_LGE_DISPLAY_LUCYE_COMMON
 #if defined(CONFIG_LGE_DISPLAY_SRE_MODE)
 static ssize_t sre_get(struct device *dev,
 	struct device_attribute *attr, char *buf)
@@ -1141,7 +1140,7 @@ static ssize_t HDR_mode_set(struct device *dev,
 }
 static DEVICE_ATTR(hdr_mode, S_IWUSR|S_IRUGO, HDR_mode_get, HDR_mode_set);
 #endif
-#endif
+
 
 #if defined(CONFIG_LGE_LCD_TUNING)
 int find_lcd_cmd(void)
@@ -1398,14 +1397,17 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	}
 
 	on_cmds = &ctrl->on_cmds;
+
 	if ((pinfo->mipi.dms_mode == DYNAMIC_MODE_SWITCH_IMMEDIATE) &&
 			(pinfo->mipi.boot_mode != pinfo->mipi.mode))
 		on_cmds = &ctrl->post_dms_on_cmds;
 
 	pr_debug("%s: ndx=%d cmd_cnt=%d\n", __func__,
 				ctrl->ndx, on_cmds->cmd_cnt);
+
 	if (on_cmds->cmd_cnt)
 		mdss_dsi_panel_cmds_send(ctrl, on_cmds, CMD_REQ_COMMIT);
+
 	if (pinfo->compression_mode == COMPRESSION_DSC)
 		mdss_dsi_panel_dsc_pps_send(ctrl, pinfo);
 
@@ -1489,6 +1491,7 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 		mdss_dba_utils_video_off(pinfo->dba_data);
 		mdss_dba_utils_hdcp_enable(pinfo->dba_data, false);
 	}
+
 end:
 	pr_debug("%s:-\n", __func__);
 	return 0;
@@ -1537,6 +1540,7 @@ static void mdss_dsi_parse_trigger(struct device_node *np, char *trigger,
 			*trigger = DSI_CMD_TRIGGER_SW_TE;
 	}
 }
+
 
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
 int mdss_dsi_parse_dcs_cmds(struct device_node *np,
@@ -1918,6 +1922,7 @@ static int mdss_dsi_parse_dsc_params(struct device_node *np,
 			__func__);
 		goto end;
 	}
+
 	rc = of_property_read_u32(np, "qcom,mdss-dsc-slice-height", &data);
 	if (rc)
 		goto end;
@@ -2971,10 +2976,13 @@ static int  mdss_dsi_panel_config_res_properties(struct device_node *np,
 		bool default_timing)
 {
 	int rc = 0;
+
 	mdss_dsi_parse_roi_alignment(np, pt);
+
 	mdss_dsi_parse_dcs_cmds(np, &pt->on_cmds,
 		"qcom,mdss-dsi-on-command",
 		"qcom,mdss-dsi-on-command-state");
+
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
 	mdss_dsi_parse_dcs_cmds(np, &pt->vcom_cmds,
 		"qcom,mdss-dsi-vcom-command",
@@ -3452,6 +3460,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 	if (lge_get_mfts_mode() || (detect_factory_cable() && panel_not_connected))
 		pinfo->power_ctrl = true;
 #endif
+
 	ctrl_pdata->on = mdss_dsi_panel_on;
 	ctrl_pdata->post_panel_on = mdss_dsi_post_panel_on;
 	ctrl_pdata->off = mdss_dsi_panel_off;
@@ -3461,6 +3470,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 #if defined(CONFIG_LGE_LCD_DYNAMIC_CABC_MIE_CTRL)
 	ctrl_pdata->ie_on = 1;
 #endif
+
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 	if ((rc = oem_mdss_aod_init(node, ctrl_pdata)))
 		return rc;
@@ -3483,7 +3493,6 @@ int mdss_dsi_panel_init(struct device_node *node,
 			pr_err("%s: Failed to create dev(panel_sysfs_dev)!", __func__);
 		}
 		else{
-#ifdef CONFIG_LGE_DISPLAY_LUCYE_COMMON
 #if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
 			if (device_create_file(panel_sysfs_dev, &dev_attr_sharpness) < 0)
 				pr_err("%s: add sharpness tuning node fail!", __func__);
@@ -3511,7 +3520,6 @@ int mdss_dsi_panel_init(struct device_node *node,
 #if defined(CONFIG_LGE_DISPLAY_HDR_MODE)
 			if (device_create_file(panel_sysfs_dev, &dev_attr_hdr_mode) < 0)
 				pr_err("%s: add hdr node fail!", __func__);
-#endif
 #endif
 		}
 	}

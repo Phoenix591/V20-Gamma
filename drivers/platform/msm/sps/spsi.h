@@ -96,13 +96,11 @@ struct sps_drv {
 	/* Connection control state */
 	struct sps_rm connection_ctrl;
 
-#ifdef CONFIG_IPC_LOGGING
 	void *ipc_log0;
 	void *ipc_log1;
 	void *ipc_log2;
 	void *ipc_log3;
 	void *ipc_log4;
-#endif
 
 	u32 ipc_loglevel;
 };
@@ -119,7 +117,6 @@ extern u8 logging_option;
 extern u8 debug_level_option;
 extern u8 print_limit_option;
 
-#ifdef CONFIG_IPC_LOGGING
 #define SPS_IPC(idx, dev, msg, args...) do { \
 		if (dev) { \
 			if ((idx == 0) && (dev)->ipc_log0) \
@@ -141,17 +138,12 @@ extern u8 print_limit_option;
 				pr_debug("sps: no such IPC logging index!\n"); \
 		} \
 	} while (0)
-#else
-#define SPS_IPC(idx, dev, msg, args...) /* Do nothing */
-#endif
 #define SPS_DUMP(msg, args...) do {					\
 		SPS_IPC(4, sps, msg, args); \
-		pr_info(msg, ##args);	\
-	} while (0)
-#define SPS_DEBUGFS(msg, args...) do {					\
-		char buf[MAX_MSG_LEN];		\
-		snprintf(buf, MAX_MSG_LEN, msg"\n", ##args);	\
-		sps_debugfs_record(buf);	\
+		if (sps) { \
+			if (sps->ipc_log4 == NULL) \
+				pr_info(msg, ##args);	\
+		} \
 	} while (0)
 #define SPS_ERR(dev, msg, args...) do {					\
 		if (logging_option != 1) {	\
@@ -160,8 +152,6 @@ extern u8 print_limit_option;
 			else	\
 				pr_err(msg, ##args);	\
 		}	\
-		if (unlikely(debugfs_record_enabled))	\
-			SPS_DEBUGFS(msg, ##args);	\
 		SPS_IPC(3, dev, msg, args); \
 	} while (0)
 #define SPS_INFO(dev, msg, args...) do {				\
@@ -171,8 +161,6 @@ extern u8 print_limit_option;
 			else	\
 				pr_info(msg, ##args);	\
 		}	\
-		if (unlikely(debugfs_record_enabled))	\
-			SPS_DEBUGFS(msg, ##args);	\
 		SPS_IPC(3, dev, msg, args); \
 	} while (0)
 #define SPS_DBG(dev, msg, args...) do {					\
@@ -184,8 +172,6 @@ extern u8 print_limit_option;
 				pr_info(msg, ##args);	\
 		} else	\
 			pr_debug(msg, ##args);	\
-		if (unlikely(debugfs_record_enabled))	\
-			SPS_DEBUGFS(msg, ##args);	\
 		if (dev) { \
 			if ((dev)->ipc_loglevel <= 0)	\
 				SPS_IPC(0, dev, msg, args); \
@@ -200,8 +186,6 @@ extern u8 print_limit_option;
 				pr_info(msg, ##args);	\
 		} else	\
 			pr_debug(msg, ##args);	\
-		if (unlikely(debugfs_record_enabled))	\
-			SPS_DEBUGFS(msg, ##args);	\
 		if (dev) { \
 			if ((dev)->ipc_loglevel <= 1)	\
 				SPS_IPC(1, dev, msg, args);	\
@@ -216,8 +200,6 @@ extern u8 print_limit_option;
 				pr_info(msg, ##args);	\
 		} else	\
 			pr_debug(msg, ##args);	\
-		if (unlikely(debugfs_record_enabled))	\
-			SPS_DEBUGFS(msg, ##args);	\
 		if (dev) { \
 			if ((dev)->ipc_loglevel <= 2)	\
 				SPS_IPC(2, dev, msg, args); \
@@ -232,8 +214,6 @@ extern u8 print_limit_option;
 				pr_info(msg, ##args);	\
 		} else	\
 			pr_debug(msg, ##args);	\
-		if (unlikely(debugfs_record_enabled))	\
-			SPS_DEBUGFS(msg, ##args);	\
 		if (dev) { \
 			if ((dev)->ipc_loglevel <= 3)	\
 				SPS_IPC(3, dev, msg, args); \

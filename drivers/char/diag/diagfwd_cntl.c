@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -27,10 +27,6 @@
 
 #define FEATURE_SUPPORTED(x)	((feature_mask << (i * 8)) & (1 << x))
 
-#ifdef CONFIG_LGE_USB_DIAG_LOCK_SPR
-extern int user_diag_enable;
-#endif
-
 /* tracks which peripheral is undergoing SSR */
 static uint16_t reg_dirty;
 static void diag_notify_md_client(uint8_t peripheral, int data);
@@ -38,17 +34,13 @@ static void diag_notify_md_client(uint8_t peripheral, int data);
 static void diag_mask_update_work_fn(struct work_struct *work)
 {
 	uint8_t peripheral;
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS, "1 \n");
 
 	for (peripheral = 0; peripheral <= NUM_PERIPHERALS; peripheral++) {
 		if (!(driver->mask_update & PERIPHERAL_MASK(peripheral)))
 			continue;
-		DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock to obtain ", __LINE__);	
 		mutex_lock(&driver->cntl_lock);
-		DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock obtained ", __LINE__);	
 		driver->mask_update ^= PERIPHERAL_MASK(peripheral);
 		mutex_unlock(&driver->cntl_lock);
-		DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock released ", __LINE__);	
 		diag_send_updates_peripheral(peripheral);
 	}
 }
@@ -68,7 +60,6 @@ void diag_cntl_channel_close(struct diagfwd_info *p_info)
 
 	if (!p_info)
 		return;
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS, "1 \n");
 
 	peripheral = p_info->peripheral;
 	if (peripheral >= NUM_PERIPHERALS)
@@ -76,9 +67,7 @@ void diag_cntl_channel_close(struct diagfwd_info *p_info)
 
 	driver->feature[peripheral].sent_feature_mask = 0;
 	driver->feature[peripheral].rcvd_feature_mask = 0;
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS, "2 \n");
 	flush_workqueue(driver->cntl_wq);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS, "3 \n");
 	reg_dirty |= PERIPHERAL_MASK(peripheral);
 	diag_cmd_remove_reg_by_proc(peripheral);
 	driver->feature[peripheral].stm_support = DISABLE_STM;
@@ -86,7 +75,6 @@ void diag_cntl_channel_close(struct diagfwd_info *p_info)
 	driver->stm_state[peripheral] = DISABLE_STM;
 	driver->stm_state_requested[peripheral] = DISABLE_STM;
 	reg_dirty ^= PERIPHERAL_MASK(peripheral);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS, "4\n");
 	diag_notify_md_client(peripheral, DIAG_STATUS_CLOSED);
 }
 
@@ -95,15 +83,11 @@ static void diag_stm_update_work_fn(struct work_struct *work)
 	uint8_t i;
 	uint16_t peripheral_mask = 0;
 	int err = 0;
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS, "1 \n");
 
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock to obtain ", __LINE__);	
 	mutex_lock(&driver->cntl_lock);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock obtained ", __LINE__);	
 	peripheral_mask = driver->stm_peripheral;
 	driver->stm_peripheral = 0;
 	mutex_unlock(&driver->cntl_lock);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock released ", __LINE__);	
 
 	if (peripheral_mask == 0)
 		return;
@@ -133,9 +117,7 @@ void diag_notify_md_client(uint8_t peripheral, int data)
 	if (driver->logging_mode != DIAG_MEMORY_DEVICE_MODE)
 		return;
 
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:md_session_lock to obtain ", __LINE__);
 	mutex_lock(&driver->md_session_lock);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:md_session_lock obtained ", __LINE__);
 	memset(&info, 0, sizeof(struct siginfo));
 	info.si_code = SI_QUEUE;
 	info.si_int = (PERIPHERAL_MASK(peripheral) | data);
@@ -160,7 +142,6 @@ void diag_notify_md_client(uint8_t peripheral, int data)
 				peripheral, info.si_int, stat);
 	}
 	mutex_unlock(&driver->md_session_lock);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:md_session_lock released ", __LINE__);
 }
 
 static void process_pd_status(uint8_t *buf, uint32_t len,
@@ -184,13 +165,10 @@ static void enable_stm_feature(uint8_t peripheral)
 	if (peripheral >= NUM_PERIPHERALS)
 		return;
 
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock to obtain ", __LINE__);	
 	mutex_lock(&driver->cntl_lock);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock obtained ", __LINE__);	
 	driver->feature[peripheral].stm_support = ENABLE_STM;
 	driver->stm_peripheral |= PERIPHERAL_MASK(peripheral);
 	mutex_unlock(&driver->cntl_lock);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock released ", __LINE__);	
 
 	queue_work(driver->cntl_wq, &(driver->stm_update_work));
 }
@@ -315,11 +293,8 @@ static void diag_close_transport_work_fn(struct work_struct *work)
 {
 	uint8_t transport;
 	uint8_t peripheral;
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS, "1 \n");
 
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock to obtain ", __LINE__);	
 	mutex_lock(&driver->cntl_lock);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock obtained ", __LINE__);
 	for (peripheral = 0; peripheral <= NUM_PERIPHERALS; peripheral++) {
 		if (!(driver->close_transport & PERIPHERAL_MASK(peripheral)))
 			continue;
@@ -329,7 +304,6 @@ static void diag_close_transport_work_fn(struct work_struct *work)
 		diagfwd_close_transport(transport, peripheral);
 	}
 	mutex_unlock(&driver->cntl_lock);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock released ", __LINE__);
 }
 
 static void process_socket_feature(uint8_t peripheral)
@@ -337,13 +311,10 @@ static void process_socket_feature(uint8_t peripheral)
 	if (peripheral >= NUM_PERIPHERALS)
 		return;
 
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock to obtain ", __LINE__);	
 	mutex_lock(&driver->cntl_lock);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock obtained ", __LINE__);
 	driver->close_transport |= PERIPHERAL_MASK(peripheral);
 	queue_work(driver->cntl_wq, &driver->close_transport_work);
 	mutex_unlock(&driver->cntl_lock);
-	DIAG_LOG(DIAG_DEBUG_PERIPHERALS," %d:cntl_lock released ", __LINE__);	
 }
 
 static void process_log_on_demand_feature(uint8_t peripheral)
@@ -537,6 +508,7 @@ static void process_ssid_range_report(uint8_t *buf, uint32_t len,
 	/* Don't account for pkt_id and length */
 	read_len += header_len - (2 * sizeof(uint32_t));
 
+	mutex_lock(&driver->msg_mask_lock);
 	driver->max_ssid_count[peripheral] = header->count;
 	for (i = 0; i < header->count && read_len < len; i++) {
 		ssid_range = (struct diag_ssid_range_t *)ptr;
@@ -580,6 +552,7 @@ static void process_ssid_range_report(uint8_t *buf, uint32_t len,
 		}
 		driver->msg_mask_tbl_count += 1;
 	}
+	mutex_unlock(&driver->msg_mask_lock);
 }
 
 static void diag_build_time_mask_update(uint8_t *buf,
@@ -604,11 +577,11 @@ static void diag_build_time_mask_update(uint8_t *buf,
 		       __func__, range->ssid_first, range->ssid_last);
 		return;
 	}
-
+	mutex_lock(&driver->msg_mask_lock);
 	build_mask = (struct diag_msg_mask_t *)(driver->build_time_mask->ptr);
 	num_items = range->ssid_last - range->ssid_first + 1;
 
-	for (i = 0; i < driver->msg_mask_tbl_count; i++, build_mask++) {
+	for (i = 0; i < driver->bt_msg_mask_tbl_count; i++, build_mask++) {
 		if (build_mask->ssid_first != range->ssid_first)
 			continue;
 		found = 1;
@@ -627,7 +600,7 @@ static void diag_build_time_mask_update(uint8_t *buf,
 
 	if (found)
 		goto end;
-	new_size = (driver->msg_mask_tbl_count + 1) *
+	new_size = (driver->bt_msg_mask_tbl_count + 1) *
 		   sizeof(struct diag_msg_mask_t);
 	temp = krealloc(driver->build_time_mask->ptr, new_size, GFP_KERNEL);
 	if (!temp) {
@@ -642,8 +615,10 @@ static void diag_build_time_mask_update(uint8_t *buf,
 		       __func__, err);
 		goto end;
 	}
-	driver->msg_mask_tbl_count += 1;
+	driver->bt_msg_mask_tbl_count += 1;
 end:
+	mutex_unlock(&driver->msg_mask_lock);
+
 	return;
 }
 
@@ -677,10 +652,6 @@ static void process_build_mask_report(uint8_t *buf, uint32_t len,
 	}
 }
 
-#ifdef CONFIG_LGE_USB_DIAG_LOCK_SPR
-extern int set_diag_enable(int);
-#endif
-
 void diag_cntl_process_read_data(struct diagfwd_info *p_info, void *buf,
 				 int len)
 {
@@ -688,9 +659,6 @@ void diag_cntl_process_read_data(struct diagfwd_info *p_info, void *buf,
 	int header_len = sizeof(struct diag_ctrl_pkt_header_t);
 	uint8_t *ptr = buf;
 	struct diag_ctrl_pkt_header_t *ctrl_pkt = NULL;
-#ifdef CONFIG_LGE_USB_DIAG_LOCK_SPR
-	struct diag_ctrl_cmd_reg *reg = NULL;
-#endif
 
 	if (!buf || len <= 0 || !p_info)
 		return;
@@ -736,13 +704,6 @@ void diag_cntl_process_read_data(struct diagfwd_info *p_info, void *buf,
 			process_pd_status(ptr, ctrl_pkt->len,
 						p_info->peripheral);
 			break;
-#ifdef CONFIG_LGE_USB_DIAG_LOCK_SPR
-		case DIAG_CTRL_MSG_LGE_DIAG_ENABLE:
-			reg = (struct diag_ctrl_cmd_reg *)ptr;
-			user_diag_enable = reg->cmd_code;
-			pr_info("diag: In %s, diag_enable: %d\n", __func__, reg->cmd_code);
-			break;
-#endif
 		default:
 			pr_debug("diag: Control packet %d not supported\n",
 				 ctrl_pkt->pkt_id);

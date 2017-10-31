@@ -1022,7 +1022,8 @@ static void glink_edge_ctx_release(struct rwref_lock *ch_st_lock)
  *                              it is not found.
  * @xprt_ctx:	Transport to search for a matching edge.
  *
- * Return: The edge ctx corresponding to edge of @xprt_ctx.
+ * Return: The edge ctx corresponding to edge of @xprt_ctx or
+ *	NULL if memory allocation fails.
  */
 static struct glink_core_edge_ctx *edge_name_to_ctx_create(
 				struct glink_core_xprt_ctx *xprt_ctx)
@@ -1038,6 +1039,10 @@ static struct glink_core_edge_ctx *edge_name_to_ctx_create(
 		}
 	}
 	edge_ctx = kzalloc(sizeof(struct glink_core_edge_ctx), GFP_KERNEL);
+	if (!edge_ctx) {
+		mutex_unlock(&edge_list_lock_lhd0);
+		return NULL;
+	}
 	strlcpy(edge_ctx->name, xprt_ctx->edge, GLINK_NAME_SIZE);
 	rwref_lock_init(&edge_ctx->edge_ref_lock_lhd1, glink_edge_ctx_release);
 	mutex_init(&edge_ctx->edge_migration_lock_lhd2);
@@ -3814,6 +3819,10 @@ int glink_core_register_transport(struct glink_transport_if *if_ptr,
 	xprt_ptr->local_version_idx = cfg->versions_entries - 1;
 	xprt_ptr->remote_version_idx = cfg->versions_entries - 1;
 	xprt_ptr->edge_ctx = edge_name_to_ctx_create(xprt_ptr);
+	if (!xprt_ptr->edge_ctx) {
+		kfree(xprt_ptr);
+		return -ENOMEM;
+	}
 	xprt_ptr->l_features =
 			cfg->versions[cfg->versions_entries - 1].features;
 	if (!if_ptr->poll)
@@ -4020,37 +4029,6 @@ static struct glink_core_xprt_ctx *glink_create_dummy_xprt_ctx(
 	return xprt_ptr;
 }
 
-static struct channel_ctx *get_first_ch_ctx(
-	struct glink_core_xprt_ctx *xprt_ctx)
-{
-	unsigned long flags;
-	struct channel_ctx *ctx;
-
-	spin_lock_irqsave(&xprt_ctx->xprt_ctx_lock_lhb1, flags);
-	if (!list_empty(&xprt_ctx->channels)) {
-		ctx = list_first_entry(&xprt_ctx->channels,
-					struct channel_ctx, port_list_node);
-		rwref_get(&ctx->ch_state_lhb2);
-	} else {
-		ctx = NULL;
-	}
-	spin_unlock_irqrestore(&xprt_ctx->xprt_ctx_lock_lhb1, flags);
-	return ctx;
-}
-
-static void glink_core_move_ch_node(struct glink_core_xprt_ctx *xprt_ptr,
-	struct glink_core_xprt_ctx *dummy_xprt_ctx, struct channel_ctx *ctx)
-{
-	unsigned long flags, d_flags;
-
-	spin_lock_irqsave(&dummy_xprt_ctx->xprt_ctx_lock_lhb1, d_flags);
-	spin_lock_irqsave(&xprt_ptr->xprt_ctx_lock_lhb1, flags);
-	rwref_get(&dummy_xprt_ctx->xprt_state_lhb0);
-	list_move_tail(&ctx->port_list_node, &dummy_xprt_ctx->channels);
-	spin_unlock_irqrestore(&xprt_ptr->xprt_ctx_lock_lhb1, flags);
-	spin_unlock_irqrestore(&dummy_xprt_ctx->xprt_ctx_lock_lhb1, d_flags);
-}
-
 /**
  * glink_core_channel_cleanup() - cleanup all channels for the transport
  *
@@ -4061,35 +4039,38 @@ static void glink_core_move_ch_node(struct glink_core_xprt_ctx *xprt_ptr,
 static void glink_core_channel_cleanup(struct glink_core_xprt_ctx *xprt_ptr)
 {
 	unsigned long flags, d_flags;
-	struct channel_ctx *ctx;
+	struct channel_ctx *ctx, *tmp_ctx;
 	struct channel_lcid *temp_lcid, *temp_lcid1;
 	struct glink_core_xprt_ctx *dummy_xprt_ctx;
 
-	trace_printk("QMCK %s start \n", __func__);
 	dummy_xprt_ctx = glink_create_dummy_xprt_ctx(xprt_ptr);
 	if (IS_ERR_OR_NULL(dummy_xprt_ctx)) {
 		GLINK_ERR("%s: Dummy Transport creation failed\n", __func__);
 		return;
 	}
 
-	trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
 	rwref_read_get(&dummy_xprt_ctx->xprt_state_lhb0);
-	trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
 	rwref_read_get(&xprt_ptr->xprt_state_lhb0);
-	trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
+	spin_lock_irqsave(&dummy_xprt_ctx->xprt_ctx_lock_lhb1, d_flags);
+	spin_lock_irqsave(&xprt_ptr->xprt_ctx_lock_lhb1, flags);
 
-	ctx = get_first_ch_ctx(xprt_ptr);
-	while (ctx) {
-		trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
+	list_for_each_entry_safe(ctx, tmp_ctx, &xprt_ptr->channels,
+						port_list_node) {
 		rwref_write_get_atomic(&ctx->ch_state_lhb2, true);
 		if (ctx->local_open_state == GLINK_CHANNEL_OPENED ||
 			ctx->local_open_state == GLINK_CHANNEL_OPENING) {
-			trace_printk("QMCK %s -- line(%d) \n", __func__, __LINE__);
+			rwref_get(&dummy_xprt_ctx->xprt_state_lhb0);
+			list_move_tail(&ctx->port_list_node,
+					&dummy_xprt_ctx->channels);
 			ctx->transport_ptr = dummy_xprt_ctx;
 			rwref_write_put(&ctx->ch_state_lhb2);
-			glink_core_move_ch_node(xprt_ptr, dummy_xprt_ctx, ctx);
 		} else {
 			/* local state is in either CLOSED or CLOSING */
+			spin_unlock_irqrestore(&xprt_ptr->xprt_ctx_lock_lhb1,
+							flags);
+			spin_unlock_irqrestore(
+					&dummy_xprt_ctx->xprt_ctx_lock_lhb1,
+					d_flags);
 			glink_core_remote_close_common(ctx, true);
 			if (ctx->local_open_state == GLINK_CHANNEL_CLOSING)
 				glink_core_ch_close_ack_common(ctx, true);
@@ -4097,21 +4078,22 @@ static void glink_core_channel_cleanup(struct glink_core_xprt_ctx *xprt_ptr)
 			if (ch_is_fully_closed(ctx))
 				glink_delete_ch_from_list(ctx, false);
 			rwref_write_put(&ctx->ch_state_lhb2);
+			spin_lock_irqsave(&dummy_xprt_ctx->xprt_ctx_lock_lhb1,
+						d_flags);
+			spin_lock_irqsave(&xprt_ptr->xprt_ctx_lock_lhb1, flags);
 		}
-		rwref_put(&ctx->ch_state_lhb2);
-		ctx = get_first_ch_ctx(xprt_ptr);
 	}
-	spin_lock_irqsave(&xprt_ptr->xprt_ctx_lock_lhb1, flags);
 	list_for_each_entry_safe(temp_lcid, temp_lcid1,
 			&xprt_ptr->free_lcid_list, list_node) {
 		list_del(&temp_lcid->list_node);
 		kfree(&temp_lcid->list_node);
 	}
+	dummy_xprt_ctx->dummy_in_use = false;
 	spin_unlock_irqrestore(&xprt_ptr->xprt_ctx_lock_lhb1, flags);
+	spin_unlock_irqrestore(&dummy_xprt_ctx->xprt_ctx_lock_lhb1, d_flags);
 	rwref_read_put(&xprt_ptr->xprt_state_lhb0);
 
 	spin_lock_irqsave(&dummy_xprt_ctx->xprt_ctx_lock_lhb1, d_flags);
-	dummy_xprt_ctx->dummy_in_use = false;
 	while (!list_empty(&dummy_xprt_ctx->channels)) {
 		ctx = list_first_entry(&dummy_xprt_ctx->channels,
 					struct channel_ctx, port_list_node);

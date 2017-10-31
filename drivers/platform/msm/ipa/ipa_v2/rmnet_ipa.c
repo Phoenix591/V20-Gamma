@@ -672,7 +672,7 @@ static int wwan_add_ul_flt_rule_to_ipa(void)
 	req->install_status = QMI_RESULT_SUCCESS_V01;
 	req->filter_index_list_len = num_q6_rule;
 	mutex_lock(&ipa_qmi_lock);
-	for (i = 0; i < num_q6_rule && (ipa_qmi_ctx != NULL); i++) {
+	for (i = 0; i < num_q6_rule; i++) {
 		if (ipa_qmi_ctx->q6_ul_filter_rule[i].ip == IPA_IP_v4) {
 			req->filter_index_list[i].filter_index = num_v4_rule;
 			num_v4_rule++;
@@ -1419,6 +1419,9 @@ static int ipa_wwan_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			memcpy(mux_channel[rmnet_index].vchannel_name,
 				extend_ioctl_data.u.rmnet_mux_val.vchannel_name,
 				sizeof(mux_channel[rmnet_index].vchannel_name));
+			mux_channel[rmnet_index].vchannel_name[
+				IFNAMSIZ - 1] = '\0';
+
 			IPAWANDBG("cashe device[%s:%d] in IPA_wan[%d]\n",
 				mux_channel[rmnet_index].vchannel_name,
 				mux_channel[rmnet_index].mux_id,
@@ -2466,6 +2469,9 @@ int rmnet_ipa_set_data_quota(struct wan_ioctl_set_data_quota *data)
 	u32 mux_id;
 	int index;
 	struct ipa_set_data_usage_quota_req_msg_v01 req;
+
+	/* prevent string buffer overflows */
+	data->interface_name[IFNAMSIZ-1] = '\0';
 
 	index = find_vchannel_name_index(data->interface_name);
 	IPAWANERR("iface name %s, quota %lu\n",

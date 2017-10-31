@@ -121,6 +121,7 @@ static int smbchg_battery_set_property_pre(struct power_supply *psy,
 	}
 	break;
 
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_CHARGING_CONTROLLER
 	case POWER_SUPPLY_PROP_HEALTH: {
 		int battery_health_psy = val->intval;
 		chip->btm_state = (battery_health_psy==POWER_SUPPLY_HEALTH_OVERHEAT) ? BTM_HEALTH_OVERHEAT :
@@ -128,6 +129,7 @@ static int smbchg_battery_set_property_pre(struct power_supply *psy,
 		pr_smb(PR_STATUS, "Update btm_state to %d\n", chip->btm_state);
 	}
 	break;
+#endif
 
 	default:
 		rc = -PROPERTY_BYPASS_REASON_NOENTRY;
@@ -206,4 +208,3 @@ enum power_supply_property* smbchg_battery_properties_ext(void) {
 size_t smbchg_battery_num_properties_ext(void) {
 	return ARRAY_SIZE(_smbchg_battery_properties_ext);
 }
-

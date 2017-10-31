@@ -388,17 +388,7 @@ struct dsi_panel_timing {
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
 	struct dsi_panel_cmds vcom_cmds;
 #endif
-#if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
-	struct dsi_panel_cmds sharpness_on_cmds;
-	struct dsi_panel_cmds ce_on_cmds;
-#endif
-#if defined(CONFIG_LGE_LCD_DYNAMIC_CABC_MIE_CTRL)
-	struct dsi_panel_cmds ie_on_cmds;
-	struct dsi_panel_cmds ie_off_cmds;
-	struct dsi_panel_cmds cabc_20_cmds;
-	struct dsi_panel_cmds cabc_30_cmds;
-#endif
-#if defined(CONFIG_LGE_DISPLAY_SRE_MODE)
+#if defined(CONFIG_LGE_DISPLAY_LUCYE_COMMON)
 	struct dsi_panel_cmds display_on_cmds;
 	struct dsi_panel_cmds display_on_and_aod_comds;
 	struct dsi_panel_cmds reg_55h_cmds;
@@ -565,17 +555,7 @@ struct mdss_dsi_ctrl_pdata {
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
 	struct dsi_panel_cmds vcom_cmds;
 #endif
-#if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
-	struct dsi_panel_cmds sharpness_on_cmds;
-	struct dsi_panel_cmds ce_on_cmds;
-#endif
-#if defined(CONFIG_LGE_LCD_DYNAMIC_CABC_MIE_CTRL)
-	struct dsi_panel_cmds ie_on_cmds;
-	struct dsi_panel_cmds ie_off_cmds;
-	struct dsi_panel_cmds cabc_20_cmds;
-	struct dsi_panel_cmds cabc_30_cmds;
-#endif
-#if defined(CONFIG_LGE_DISPLAY_SRE_MODE)
+#if defined(CONFIG_LGE_DISPLAY_LUCYE_COMMON)
 	struct dsi_panel_cmds display_on_cmds;
 	struct dsi_panel_cmds display_on_and_aod_comds;
 	struct dsi_panel_cmds reg_55h_cmds;
@@ -586,6 +566,10 @@ struct mdss_dsi_ctrl_pdata {
 #endif
 #if defined(CONFIG_LGE_LCD_DYNAMIC_CABC_MIE_CTRL)
 	int ie_on;
+	struct dsi_panel_cmds ie_on_cmds;
+	struct dsi_panel_cmds ie_off_cmds;
+	struct dsi_panel_cmds cabc_20_cmds;
+	struct dsi_panel_cmds cabc_30_cmds;
 #endif
 #if defined(CONFIG_LGE_DISPLAY_LINEAR_GAMMA)
 	struct dsi_panel_cmds linear_gamma_default_cmds;

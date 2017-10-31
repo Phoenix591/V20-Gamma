@@ -847,14 +847,12 @@ int lgcc_get_effective_fcc_result(void) {
 EXPORT_SYMBOL(lgcc_get_effective_fcc_result);
 #endif
 
-#ifdef CONFIG_LGE_PM_FACTORY_CABLE
-static bool is_factory_cable(struct smbchg_chip *chip) {
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_CABLE_DETECT
+static bool is_factory_cable(struct smbchg_chip *chip) {
 	if (chip)
 		return chip->is_factory_cable;
 	else
 		return is_boot_factory_cable;
-#endif
 	return false;
 }
 #endif
@@ -4434,7 +4432,7 @@ static int smbchg_config_chg_battery_type(struct smbchg_chip *chip)
 	}
 
 #if defined (CONFIG_MACH_MSM8996_ELSA)
-	profile_node = of_batterydata_get_best_profile(batt_node,NULL);
+	profile_node = of_batterydata_get_best_profile(batt_node, NULL);
 #else
 	profile_node = of_batterydata_get_best_profile(batt_node,
 							"bms", NULL);
@@ -4466,8 +4464,12 @@ static int smbchg_config_chg_battery_type(struct smbchg_chip *chip)
 		return 0;
 	}
 
+#if defined (CONFIG_MACH_MSM8996_ELSA)
+	profile_node = of_batterydata_get_best_profile(batt_node, NULL);
+#else
 	profile_node = of_batterydata_get_best_profile(batt_node,
 							"bms", NULL);
+#endif
 	if (!profile_node) {
 		pr_err("couldn't find profile handle\n");
 		return -EINVAL;
@@ -4982,13 +4984,14 @@ skip_current_for_non_sdp:
 }
 
 #ifdef CONFIG_LGE_PM_LGE_POWER_CORE
+#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_CABLE_DETECT
 static char *lge_cable_type_str[] = {
        "NOT INIT", "MHL 1K", "U_28P7K",
        "28P7K", "56K", "100K",  "130K",
        "180K", "200K", "220K",  "270K",
        "330K", "620K", "910K",  "OPEN"
 };
-
+#endif
 static void smbchg_external_lge_power_changed(struct power_supply *psy)
 {
 	struct smbchg_chip *chip
@@ -6495,12 +6498,14 @@ static void smbchg_hvdcp_recovery_work(struct work_struct *work)
 			chip->usb_supply_type != POWER_SUPPLY_TYPE_USB_HVDCP_3)
 		goto out;
 
+#if defined(CONFIG_LGE_PM_DEBUG) && defined(CONFIG_LGE_PM_LGE_POWER_CLASS_CHARGING_CONTROLLER)
 	usbin_vol = get_usb_adc(chip);
 	if (usbin_vol > HVDCP_RECOVERY_MV) {
 		schedule_delayed_work(&chip->hvdcp_recovery_work,
 				msecs_to_jiffies(HVDCP_RECOVERY_MS));
 		goto out;
 	}
+#endif
 
 	chip->hvdcp_uv_count++;
 	pr_smb(PR_LGE, "check recover hvdcp (%d). voltage = %dmV\n",
@@ -6915,9 +6920,7 @@ static void handle_usb_removal(struct smbchg_chip *chip)
 		chip->typec_current_ma = 0;
 	/* cancel/wait for hvdcp pending work if any */
 	cancel_delayed_work_sync(&chip->hvdcp_det_work);
-#ifdef CONFIG_LGE_PM
 	smbchg_relax(chip, PM_DETECT_HVDCP);
-#endif
 #ifdef CONFIG_LGE_PM_PARALLEL_CHARGING
 	cancel_delayed_work_sync(&chip->battchg_protect_work);
 #endif
@@ -9106,7 +9109,7 @@ static irqreturn_t usbin_uv_handler(int irq, void *_chip)
 		goto out;
 
 	if ((reg & USBIN_UV_BIT) && (reg & USBIN_SRC_DET_BIT)) {
-#ifdef CONFIG_LGE_PM_DEBUG
+#if defined(CONFIG_LGE_PM_DEBUG) && defined(CONFIG_LGE_PM_LGE_POWER_CLASS_CHARGING_CONTROLLER)
 		pr_smb(PR_STATUS, "Very weak charger detected. VBUS[%d]\n",
 				get_usb_adc(chip));
 #else
@@ -9414,8 +9417,10 @@ static void lgcc_charger_reginfo(struct work_struct *work) {
 	bool wireless_present = is_dc_present(chip);
 	int parallel_status = 0;
 	char *usb_type_name = "null";
+#if defined(CONFIG_LGE_PM_LGE_POWER_CLASS_CHARGING_CONTROLLER)
 	char *cable_type_name = "NOT_INIT";
 	int usbin_vol = get_usb_adc(chip);
+#endif
 	int pmi_iusb_aicl = 0;
 	int pmi_ibat_set = 0;
 	int smb_ibat_set = 0;
@@ -9704,8 +9709,10 @@ static void lgcc_charger_reginfo(struct work_struct *work) {
 				total_iusb_set, pmi_iusb_aicl, smb_iusb);
 		pr_info("[STATUS] TOTAL_IBAT[%d/%d(vote)], PMI_IBAT[%d], SMB_IBAT[%d]\n",
 				total_ibat, min_vote, pmi_ibat_set, smb_ibat_set);
+#if defined(CONFIG_LGE_PM_LGE_POWER_CLASS_CHARGING_CONTROLLER)
 		pr_info ("[STATUS] CABLE_ID [%s], CABLE_INFO[%s], USBIN_VOL[%d]\n",
 				cable_type_name, usb_type_name, usbin_vol);
+#endif
 	}
 	pr_info ("[STATUS] BATT_SOC[%d], BATT_VOL[%d], BATT_TEMP[%d], BATT_CUR[%d]\n",
 			batt_soc, batt_volt, batt_temp, batt_cur);
@@ -11860,6 +11867,7 @@ static int smbchg_probe(struct spmi_device *spmi)
 
 	rerun_hvdcp_det_if_necessary(chip);
 
+	update_usb_status(chip, is_usb_present(chip), false);
 	dump_regs(chip);
 	create_debugfs_entries(chip);
 	dev_info(chip->dev,

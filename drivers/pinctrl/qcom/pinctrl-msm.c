@@ -35,10 +35,6 @@
 #include "pinctrl-msm.h"
 #include "../pinctrl-utils.h"
 
-#ifdef CONFIG_LGE_PM
-#include "linux/suspend.h"
-#endif
-
 #define MAX_NR_GPIO 300
 #define PS_HOLD_OFFSET 0x820
 #define TLMM_EBI2_EMMC_GPIO_CFG 0x111000
@@ -514,9 +510,7 @@ static void msm_gpio_dbg_show_one(struct seq_file *s,
 	int drive;
 	int pull;
 	u32 ctl_reg;
-#if defined (CONFIG_MACH_MSM8996_ELSA) || defined (CONFIG_MACH_MSM8996_LUCYE)
-	u32 val = 0 ;
-#endif
+
 	static const char * const pulls[] = {
 		"no pull",
 		"pull down",
@@ -526,10 +520,7 @@ static void msm_gpio_dbg_show_one(struct seq_file *s,
 
 	g = &pctrl->soc->groups[offset];
 	ctl_reg = readl(pctrl->regs + g->ctl_reg);
-#if defined (CONFIG_MACH_MSM8996_ELSA) || defined (CONFIG_MACH_MSM8996_LUCYE)
-	val = readl(pctrl->regs + g->io_reg);
-	val &= BIT(g->out_bit);
-#endif
+
 	is_out = !!(ctl_reg & BIT(g->oe_bit));
 	func = (ctl_reg >> g->mux_bit) & 7;
 	drive = (ctl_reg >> g->drv_bit) & 7;
@@ -538,11 +529,8 @@ static void msm_gpio_dbg_show_one(struct seq_file *s,
 	seq_printf(s, " %-8s: %-3s %d", g->name, is_out ? "out" : "in", func);
 	seq_printf(s, " %dmA", msm_regval_to_drive(drive));
 	seq_printf(s, " %s", pulls[pull]);
-#if defined (CONFIG_MACH_MSM8996_ELSA) || defined (CONFIG_MACH_MSM8996_LUCYE)
-	if ( is_out )
-	seq_printf(s, " %s", val ? "HIGH" : "LOW" );
-#endif
 }
+
 static void msm_gpio_dbg_show(struct seq_file *s, struct gpio_chip *chip)
 {
 	unsigned gpio = chip->base;
@@ -832,7 +820,8 @@ bool msm_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
 		val = readl(pctrl->regs + g->intr_status_reg);
 		if (val & BIT(g->intr_status_bit)) {
 			irq_pin = irq_find_mapping(gc->irqdomain, i);
-			handled += generic_handle_irq(irq_pin);
+			generic_handle_irq(irq_pin);
+			handled++;
 		}
 	}
 

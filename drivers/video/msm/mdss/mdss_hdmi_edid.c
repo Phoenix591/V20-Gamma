@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -78,6 +78,13 @@ enum edid_sink_mode {
 	SINK_MODE_HDMI
 };
 
+enum luminance_value {
+	NO_LUMINANCE_DATA = 3,
+	MAXIMUM_LUMINANCE = 4,
+	FRAME_AVERAGE_LUMINANCE = 5,
+	MINIMUM_LUMINANCE = 6
+};
+
 enum data_block_types {
 	RESERVED,
 	AUDIO_DATA_BLOCK,
@@ -93,6 +100,7 @@ enum extended_data_block_types {
 	VIDEO_CAPABILITY_DATA_BLOCK = 0x0,
 	VENDOR_SPECIFIC_VIDEO_DATA_BLOCK = 0x01,
 	HDMI_VIDEO_DATA_BLOCK = 0x04,
+	HDR_STATIC_METADATA_DATA_BLOCK = 0x06,
 	Y420_VIDEO_DATA_BLOCK = 0x0E,
 	VIDEO_FORMAT_PREFERENCE_DATA_BLOCK = 0x0D,
 	Y420_CAPABILITY_MAP_DATA_BLOCK = 0x0F,
@@ -153,11 +161,13 @@ struct hdmi_edid_ctrl {
 	char vendor_id[EDID_VENDOR_ID_SIZE];
 	bool keep_resv_timings;
 	bool edid_override;
+	bool hdr_supported;
 
 	struct hdmi_edid_sink_data sink_data;
 	struct hdmi_edid_init_data init_data;
 	struct hdmi_edid_sink_caps sink_caps;
 	struct hdmi_edid_override_data override_data;
+	struct hdmi_edid_hdr_data hdr_data;
 };
 
 static bool hdmi_edid_is_mode_supported(struct hdmi_edid_ctrl *edid_ctrl,
@@ -224,6 +234,14 @@ static int hdmi_edid_reset_parser(struct hdmi_edid_ctrl *edid_ctrl)
 	/* reset new resolution details */
 	if (!edid_ctrl->keep_resv_timings)
 		hdmi_reset_resv_timing_info();
+
+	/* reset HDR related data */
+	edid_ctrl->hdr_supported = false;
+	edid_ctrl->hdr_data.eotf = 0;
+	edid_ctrl->hdr_data.metadata_type_one = false;
+	edid_ctrl->hdr_data.max_luminance = 0;
+	edid_ctrl->hdr_data.avg_luminance = 0;
+	edid_ctrl->hdr_data.min_luminance = 0;
 
 	return 0;
 }
@@ -483,8 +501,10 @@ static ssize_t hdmi_edid_sysfs_wta_res_info(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
 	int rc, page_id;
+	u32 i = 0, j, page;
 	ssize_t ret = strnlen(buf, PAGE_SIZE);
 	struct hdmi_edid_ctrl *edid_ctrl = hdmi_edid_get_ctrl(dev);
+	struct msm_hdmi_mode_timing_info info = {0};
 
 	if (!edid_ctrl) {
 		DEV_ERR("%s: invalid input\n", __func__);
@@ -497,7 +517,22 @@ static ssize_t hdmi_edid_sysfs_wta_res_info(struct device *dev,
 		return rc;
 	}
 
-	edid_ctrl->page_id = page_id;
+	if (page_id > MSM_HDMI_INIT_RES_PAGE) {
+		page = MSM_HDMI_INIT_RES_PAGE;
+		while (page < page_id) {
+			j = 1;
+			while (sizeof(info) * j < PAGE_SIZE) {
+				i++;
+				j++;
+			}
+			page++;
+		}
+	}
+
+	if (i < HDMI_VFRMT_MAX)
+		edid_ctrl->page_id = page_id;
+	else
+		DEV_ERR("%s: invalid page id\n", __func__);
 
 	DEV_DBG("%s: %d\n", __func__, edid_ctrl->page_id);
 	return ret;
@@ -784,6 +819,30 @@ err:
 }
 static DEVICE_ATTR(add_res, S_IWUSR, NULL, hdmi_edid_sysfs_wta_add_resolution);
 
+static ssize_t hdmi_edid_sysfs_rda_hdr_data(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	ssize_t ret;
+	struct hdmi_edid_ctrl *edid_ctrl = hdmi_edid_get_ctrl(dev);
+
+	if (!edid_ctrl) {
+		DEV_ERR("%s: invalid input\n", __func__);
+		return -EINVAL;
+	}
+
+	ret = scnprintf(buf, PAGE_SIZE, "%d, %u, %u, %u, %u, %u\n",
+			edid_ctrl->hdr_supported,
+			edid_ctrl->hdr_data.eotf,
+			edid_ctrl->hdr_data.metadata_type_one,
+			edid_ctrl->hdr_data.max_luminance,
+			edid_ctrl->hdr_data.avg_luminance,
+			edid_ctrl->hdr_data.min_luminance);
+	DEV_DBG("%s: '%s'\n", __func__, buf);
+
+	return ret;
+}
+static DEVICE_ATTR(hdr_data, S_IRUGO, hdmi_edid_sysfs_rda_hdr_data, NULL);
+
 static struct attribute *hdmi_edid_fs_attrs[] = {
 	&dev_attr_edid_modes.attr,
 	&dev_attr_pa.attr,
@@ -797,6 +856,7 @@ static struct attribute *hdmi_edid_fs_attrs[] = {
 	&dev_attr_res_info.attr,
 	&dev_attr_res_info_data.attr,
 	&dev_attr_add_res.attr,
+	&dev_attr_hdr_data.attr,
 	NULL,
 };
 
@@ -940,7 +1000,50 @@ static void hdmi_edid_parse_Y420VDB(struct hdmi_edid_ctrl *edid_ctrl,
 		hdmi_edid_add_sink_y420_format(edid_ctrl, video_format);
 	}
 }
+#endif
 
+static bool hdmi_edid_is_luminance_value_present(u32 block_length,
+		enum luminance_value value)
+{
+	return block_length > NO_LUMINANCE_DATA && value <= block_length;
+}
+
+static void hdmi_edid_parse_hdrdb(struct hdmi_edid_ctrl *edid_ctrl,
+		const u8 *data_block)
+{
+	u8 len = 0;
+
+	if (!edid_ctrl || !data_block) {
+		pr_err("%s: invalid input\n", __func__);
+		return;
+	}
+
+	/* Byte 1: Length of Data Block */
+	len = data_block[0] & 0x1F;
+
+	/* Byte 3: Electro-Optical Transfer Functions */
+	edid_ctrl->hdr_data.eotf = data_block[2] & 0x3F;
+
+	/* Byte 4: Static Metadata Descriptor Type 1 */
+	edid_ctrl->hdr_data.metadata_type_one = (data_block[3] & 0x1) & BIT(0);
+
+	/* Byte 5: Desired Content Maximum Luminance */
+	if (hdmi_edid_is_luminance_value_present(len, MAXIMUM_LUMINANCE))
+		edid_ctrl->hdr_data.max_luminance =
+			data_block[MAXIMUM_LUMINANCE];
+
+	/* Byte 6: Desired Content Max Frame-average Luminance */
+	if (hdmi_edid_is_luminance_value_present(len, FRAME_AVERAGE_LUMINANCE))
+		edid_ctrl->hdr_data.avg_luminance =
+			data_block[FRAME_AVERAGE_LUMINANCE];
+
+	/* Byte 7: Desired Content Min Luminance */
+	if (hdmi_edid_is_luminance_value_present(len, MINIMUM_LUMINANCE))
+		edid_ctrl->hdr_data.min_luminance =
+			data_block[MINIMUM_LUMINANCE];
+}
+
+#ifndef LGE_TEMP_PATCH_FOR_4K_OUT_FORMAT_TO_RGB
 static void hdmi_edid_parse_Y420CMDB(struct hdmi_edid_ctrl *edid_ctrl,
 				     const u8 *in_buf)
 {
@@ -1090,6 +1193,12 @@ static void hdmi_edid_extract_extended_data_blocks(
 			hdmi_edid_parse_Y420VDB(edid_ctrl, etag);
 			break;
 #endif
+		case HDR_STATIC_METADATA_DATA_BLOCK:
+			DEV_DBG("%s found HDR Static Metadata. Byte 3 = 0x%x",
+				__func__, etag[2]);
+			hdmi_edid_parse_hdrdb(edid_ctrl, etag);
+			edid_ctrl->hdr_supported = true;
+			break;
 		default:
 			DEV_DBG("%s: Tag Code %d not supported\n",
 				__func__, etag[1]);
@@ -2536,6 +2645,31 @@ u32 hdmi_edid_get_sink_mode(void *input)
 
 	return sink_mode;
 } /* hdmi_edid_get_sink_mode */
+
+/**
+ * hdmi_edid_get_hdr_data() - get the HDR capabiliies of the sink
+ * @input: edid parser data
+ *
+ * This API returns HDR info associated with the sink:
+ * electro-optical transfer function, static metadata descriptor,
+ * desired content max luminance data, desired content max
+ * frame-average luminance data, and desired content min luminance
+ * data.
+ *
+ * Return: HDR data.
+ */
+void hdmi_edid_get_hdr_data(void *input,
+		struct hdmi_edid_hdr_data **hdr_data)
+{
+	struct hdmi_edid_ctrl *edid_ctrl = (struct hdmi_edid_ctrl *)input;
+
+	if (!edid_ctrl) {
+		DEV_ERR("%s: invalid input\n", __func__);
+		return;
+	}
+
+	*hdr_data = &edid_ctrl->hdr_data;
+}
 
 bool hdmi_edid_is_s3d_mode_supported(void *input, u32 video_mode, u32 s3d_mode)
 {

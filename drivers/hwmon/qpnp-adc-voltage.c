@@ -1880,10 +1880,9 @@ int32_t qpnp_vadc_read(struct qpnp_vadc_chip *vadc,
 		}
 
 		return 0;
-	}
 #ifdef CONFIG_LGE_PM
 #if defined(CONFIG_MACH_MSM8996_H1) || defined(CONFIG_MACH_MSM8996_LUCYE)
-	else if (channel == LR_MUX10_PU1_AMUX_USB_ID_LV || channel == LR_MUX10_USB_ID_LV) {
+	} else if (channel == LR_MUX10_PU1_AMUX_USB_ID_LV || channel == LR_MUX10_USB_ID_LV) {
 		u8 data;
 		struct spmi_device *spmi = vadc->adc->spmi;
 
@@ -1908,9 +1907,8 @@ int32_t qpnp_vadc_read(struct qpnp_vadc_chip *vadc,
 #endif
 
 		return rc;
-	}
 #elif defined(CONFIG_MACH_MSM8996_ELSA)
-	else if (channel == LR_MUX10_USB_ID_LV) {
+	} else if (channel == LR_MUX10_USB_ID_LV) {
 		unsigned int *cable_info = NULL;
 		unsigned int cable_smem_size = 0;
 
@@ -1949,10 +1947,9 @@ int32_t qpnp_vadc_read(struct qpnp_vadc_chip *vadc,
 
 		return qpnp_vadc_conv_seq_request(vadc, ADC_SEQ_NONE,
 				channel, result);;
-	}
 #endif
 #endif
-	else
+	} else
 		return qpnp_vadc_conv_seq_request(vadc, ADC_SEQ_NONE,
 				channel, result);
 }

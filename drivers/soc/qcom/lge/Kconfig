@@ -16,7 +16,7 @@ config MACH_MSM8996_H1
 
 config MACH_MSM8996_H1_KR
 	bool "MSM8996 H1"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_H1
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 H1 device.
@@ -71,95 +71,95 @@ config MACH_MSM8996_H1_CNO_CN
 	  Support for the Qualcomm MSM8996 H1_CNO_CN device.
 
 config MACH_MSM8996_H1_SPR_US
-    bool "MSM8996 H1_SPR_US"
-    depends on MACH_MSM8996_H1
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_SPR_US device.
+	bool "MSM8996 H1_SPR_US"
+	depends on MACH_MSM8996_H1
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_SPR_US device.
 
 config MACH_MSM8996_H1_USC_US
-    bool "MSM8996 H1_USC_US"
-    depends on MACH_MSM8996_H1
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_USC_US device.
+	bool "MSM8996 H1_USC_US"
+	depends on MACH_MSM8996_H1
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_USC_US device.
 
 config MACH_MSM8996_H1_LRA_US
-    bool "MSM8996 H1_LRA_US"
-    depends on MACH_MSM8996_H1
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_LRA_US device.
+	bool "MSM8996 H1_LRA_US"
+	depends on MACH_MSM8996_H1
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_LRA_US device.
 
 config MACH_MSM8996_H1_ACG_US
-    bool "MSM8996 H1_ACG_US"
-    depends on MACH_MSM8996_H1
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_ACG_US device.
+	bool "MSM8996 H1_ACG_US"
+	depends on MACH_MSM8996_H1
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_ACG_US device.
 
 config MACH_MSM8996_H1_ATT_US
-    bool "MSM8996 H1_ATT_US"
-    depends on MACH_MSM8996_H1
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_ATT_US device.
+	bool "MSM8996 H1_ATT_US"
+	depends on MACH_MSM8996_H1
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_ATT_US device.
 
 config MACH_MSM8996_H1_TMO_US
-    bool "MSM8996 H1_TMO_US"
-    depends on MACH_MSM8996_H1
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_TMO_US device.
+	bool "MSM8996 H1_TMO_US"
+	depends on MACH_MSM8996_H1
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_TMO_US device.
 
 config MACH_MSM8996_H1_CA
-    bool "MSM8996 H1_CA"
-    depends on MACH_MSM8996_H1
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_CA device.
+	bool "MSM8996 H1_CA"
+	depends on MACH_MSM8996_H1
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_CA device.
 
 config MACH_MSM8996_H1_BELL_CA
-    bool "MSM8996 H1_BELL_CA"
-    depends on MACH_MSM8996_H1_CA
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_BELL_CA device.
+	bool "MSM8996 H1_BELL_CA"
+	depends on MACH_MSM8996_H1_CA
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_BELL_CA device.
 
 config MACH_MSM8996_H1_RGS_CA
-    bool "MSM8996 H1_RGS_CA"
-    depends on MACH_MSM8996_H1_CA
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_RGS_CA device.
+	bool "MSM8996 H1_RGS_CA"
+	depends on MACH_MSM8996_H1_CA
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_RGS_CA device.
 
 config MACH_MSM8996_H1_TLS_CA
-    bool "MSM8996 H1_TLS_CA"
-    depends on MACH_MSM8996_H1_CA
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_TLS_CA device.
+	bool "MSM8996 H1_TLS_CA"
+	depends on MACH_MSM8996_H1_CA
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_TLS_CA device.
 
 config MACH_MSM8996_H1_VTR_CA
-    bool "MSM8996 H1_VTR_CA"
-    depends on MACH_MSM8996_H1_CA
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_VTR_CA device.
+	bool "MSM8996 H1_VTR_CA"
+	depends on MACH_MSM8996_H1_CA
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_VTR_CA device.
 
 config MACH_MSM8996_H1_KDDI_JP
-    bool "MSM8996 H1_KDDI_JP"
-    depends on MACH_MSM8996_H1
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_KDDI_JP device.
+	bool "MSM8996 H1_KDDI_JP"
+	depends on MACH_MSM8996_H1
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_KDDI_JP device.
 
 config MACH_MSM8996_H1_CLR_PR
-    bool "MSM8996 H1_CLR_PR"
-    depends on MACH_MSM8996_H1
-    select MACH_LGE
-    help
-      Support for the Qualcomm MSM8996 H1_CLR_PR device.
+	bool "MSM8996 H1_CLR_PR"
+	depends on MACH_MSM8996_H1
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 H1_CLR_PR device.
 
 config MACH_MSM8996_ELSA
 	bool "MSM8996 ELSA"
@@ -171,7 +171,7 @@ config MACH_MSM8996_ELSA
 
 config MACH_MSM8996_ELSA_KR
 	bool "MSM8996 ELSA"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA device.
@@ -184,106 +184,106 @@ config MACH_MSM8996_ELSA_LGU_KR
 	  Support for the Qualcomm MSM8996 ELSA_LGU_KR device.
 
 config MACH_MSM8996_ELSA_SKT_KR
-     bool "MSM8996 ELSA_SKT_KR"
-     depends on MACH_MSM8996_ELSA_KR
-     select MACH_LGE
-     help
-       Support for the Qualcomm MSM8996 ELSA_SKT_KR device.
+	bool "MSM8996 ELSA_SKT_KR"
+	depends on MACH_MSM8996_ELSA_KR
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_SKT_KR device.
 
 config MACH_MSM8996_ELSA_KT_KR
-     bool "MSM8996 ELSA_KT_KR"
-     depends on MACH_MSM8996_ELSA_KR
-     select MACH_LGE
-     help
-       Support for the Qualcomm MSM8996 ELSA_KT_KR device.
+	bool "MSM8996 ELSA_KT_KR"
+	depends on MACH_MSM8996_ELSA_KR
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 ELSA_KT_KR device.
 
 config MACH_MSM8996_ELSA_VZW
 	bool "MSM8996 ELSA_VZW"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_VZW device.
 
 config MACH_MSM8996_ELSA_ATT_US
 	bool "MSM8996 ELSA_ATT US"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_ATT_US device.
 
 config MACH_MSM8996_ELSA_SPR_US
 	bool "MSM8996 ELSA_SPR US"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_SPR_US device.
 
 config MACH_MSM8996_ELSA_TMO_US
 	bool "MSM8996 ELSA_TMO US"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_TMO_US device.
 
 config MACH_MSM8996_ELSA_CLR_PR
 	bool "MSM8996 ELSA_CLR PR"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_CLR_PR device.
 
 config MACH_MSM8996_ELSA_USC_US
 	bool "MSM8996 ELSA_USC US"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_USC_US device.
 
 config MACH_MSM8996_ELSA_NAO_US
 	bool "MSM8996 ELSA_NAO US"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_NAO_US device.
 
 config MACH_MSM8996_ELSA_GLOBAL_COM
 	bool "MSM8996 ELSA_GLOBAL COM"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_GLOBAL_COM device.
 
 config MACH_MSM8996_ELSA_GLOBAL_LIVE_DUMMY
 	bool "MSM8996 ELSA_GLOBAL COM"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_GLOBAL_COM device.
-	  
+
 config MACH_MSM8996_ELSA_GLOBAL_CA
 	bool "MSM8996 ELSA_GLOBAL CA"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_GLOBAL_CA device.
 
 config MACH_MSM8996_ELSA_CNO_CN
 	bool "MSM8996 ELSA_CNO_CN"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_CNO_CN device.
 
 config MACH_MSM8996_ELSA_KDDI_JP
 	bool "MSM8996 ELSA_KDDI_JP"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_KDDI_JP device.
-	  	  
+
 config MACH_MSM8996_ELSA_DCM_JP
 	bool "MSM8996 ELSA_DCM_JP"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_ELSA
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA_DCM_JP device.
@@ -298,7 +298,7 @@ config MACH_MSM8996_LUCYE
 
 config MACH_MSM8996_LUCYE_KR
 	bool "MSM8996 LUCYE"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_LUCYE
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 LUCYE device.
@@ -326,80 +326,81 @@ config MACH_MSM8996_LUCYE_KT_KR
 
 config MACH_MSM8996_LUCYE_GLOBAL_COM
 	bool "MSM8996 LUCYE_GLOBAL COM"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_LUCYE
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 LUCYE_GLOBAL_COM device.
 
 config MACH_MSM8996_LUCYE_GLOBAL_CA
 	bool "MSM8996 LUCYE_GLOBAL CA"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_LUCYE
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 LUCYE_GLOBAL_CA device.
 
 config MACH_MSM8996_LUCYE_VZW
 	bool "MSM8996 LUCYE_VZW"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_LUCYE
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 LUCYE_VZW device.
 
 config MACH_MSM8996_LUCYE_SPR_US
 	bool "MSM8996 LUCYE_SPR_US"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_LUCYE
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 LUCYE_SPR_US device.
 
 config MACH_MSM8996_LUCYE_NAO_US
 	bool "MSM8996 LUCYE_NAO_US"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_LUCYE
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 LUCYE_NAO_US device.
 
 config MACH_MSM8996_LUCYE_ATT_US
 	bool "MSM8996 LUCYE_ATT_US"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_LUCYE
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 LUCYE_ATT_US device.
 
 config MACH_MSM8996_LUCYE_TMO_US
 	bool "MSM8996 LUCYE_TMO_US"
-	depends on ARCH_MSM8996
+	depends on MACH_MSM8996_LUCYE
 	select MACH_LGE
 	help
 	  Support for the Qualcomm MSM8996 LUCYE_TMO_US device.
 
 config MACH_MSM8996_LUCYE_CLR_PR
-        bool "MSM8996 LUCYE_CLR_PR"
-        depends on ARCH_MSM8996
-        select MACH_LGE
-        help
-          Support for the Qualcomm MSM8996 LUCYE_CLR_PR device.
+	bool "MSM8996 LUCYE_CLR_PR"
+	depends on MACH_MSM8996_LUCYE
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 LUCYE_CLR_PR device.
 
 config MACH_MSM8996_LUCYE_GLOBAL_LDU
-        bool "MSM8996 LUCYE_GLOBAL LDU"
-        depends on ARCH_MSM8996
-        select MACH_LGE
-        help
-          Support for the Qualcomm MSM8996 LUCYE_GLOBAL_LDU device.
+	bool "MSM8996 LUCYE_GLOBAL LDU"
+	depends on MACH_MSM8996_LUCYE
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 LUCYE_GLOBAL_LDU device.
 
 config MACH_MSM8996_LUCYE_LGU_LDU
-        bool "MSM8996 LUCYE_LGU LDU"
-        depends on ARCH_MSM8996
-        select MACH_LGE
-        help
-          Support for the Qualcomm MSM8996 LUCYE_LGU_LDU device.
+	bool "MSM8996 LUCYE_LGU LDU"
+	depends on MACH_MSM8996_LUCYE
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 LUCYE_LGU_LDU device.
 
 config MACH_MSM8996_LUCYE_ACG_US
-        bool "MSM8996 LUCYE_ACG_US"
-        depends on ARCH_MSM8996
-        select MACH_LGE
-        help
-          Support for the Qualcomm MSM8996 LUCYE_ACG_US device.
+	bool "MSM8996 LUCYE_ACG_US"
+	depends on MACH_MSM8996_LUCYE
+	select MACH_LGE
+	help
+	  Support for the Qualcomm MSM8996 LUCYE_ACG_US device.
+
 endmenu
 
 menu "LGE Specific Patches"
@@ -410,6 +411,12 @@ config LGE_HANDLE_PANIC
 	depends on MACH_LGE
 	help
 	  LGE Crash Handler
+
+config LGE_HALL_IC
+	bool "LGE HALL IC"
+	depends on MACH_LGE
+	help
+	  Support sending a device-tree defined gpio code when hall IC is triggered
 
 config LGE_BOOT_LOCKUP_DETECT
 	bool "Support to detect lockup during powering on"
@@ -552,6 +559,15 @@ config LGE_QSDL_SUPPORT
 	help
 	  QSDL is a feature which notify infomation for quality statistics
 	  data logging of device.
+
+config LGE_DISABLE_SECOND_SCREEN
+	bool "Disable the secondary screen on elsa devices"
+	depends on MACH_MSM8996_ELSA
+	help
+	  Disables the second screen for devices with userspace which lacks
+	  support.  Notably this includes all non-stock versions of Android
+	  for LGE devices at the time of this writing (progress is being
+	  made for other Android versions though).
 
 endmenu
 
