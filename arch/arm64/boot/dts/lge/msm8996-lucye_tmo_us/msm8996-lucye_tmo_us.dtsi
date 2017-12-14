@@ -10,12 +10,14 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/kconfig.h>
+
 #include "msm8996-lucye_tmo_us-pinctrl.dtsi"
 #include "msm8996-lucye_tmo_us-misc.dtsi"
 #include "msm8996-lucye_tmo_us-panel.dtsi"
 #include "msm8996-lucye_tmo_us-pm.dtsi"
-#include "msm8996-lucye_tmo_us-connectivity.dtsi"
-#include "msm8996-lucye_tmo_us-nfc.dtsi"
+#include "../msm8996-lucye-connectivity.dtsi"
+#include "../msm8996-nfc.dtsi"
 #include "msm8996-lucye_tmo_us-hdmi.dtsi"
 #include "msm8996-lucye_tmo_us-fingerprint.dtsi"
 #include "msm8996-lucye_tmo_us-usb.dtsi"

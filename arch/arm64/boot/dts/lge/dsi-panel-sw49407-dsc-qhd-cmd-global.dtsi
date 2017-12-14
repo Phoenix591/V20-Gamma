@@ -11,14 +11,18 @@
  */
 
 &mdss_mdp {
-    dsi_sw49407_dsc_cmd: qcom,mdss_dsi_sw49407_dsc_qhd_cmd {
-        qcom,mdss-dsi-panel-name = "SW49407 cmd mode dsc dsi panel";
+	dsi_sw49407_dsc_cmd: qcom,mdss_dsi_sw49407_dsc_qhd_cmd {
+		qcom,mdss-dsi-panel-name = "SW49407 cmd mode dsc dsi panel";
 		qcom,mdss-dsi-panel-type = "dsi_cmd_mode";
 		qcom,mdss-dsi-panel-framerate = <60>;
 		qcom,mdss-dsi-virtual-channel-id = <0>;
 		qcom,mdss-dsi-stream = <0>;
 		qcom,mdss-dsi-panel-width = <1440>;
+#ifdef CONFIG_LGE_DISABLE_SECOND_SCREEN
 		qcom,mdss-dsi-panel-height = <2560>;
+#else
+		qcom,mdss-dsi-panel-height = <2720>;
+#endif
 		qcom,mdss-dsi-h-front-porch = <100>;
 		qcom,mdss-dsi-h-back-porch = <32>;
 		qcom,mdss-dsi-h-pulse-width = <16>;
@@ -28,7 +32,11 @@
 		qcom,mdss-dsi-v-pulse-width = <1>;
 		qcom,mdss-dsi-h-left-border = <0>;
 		qcom,mdss-dsi-h-right-border = <0>;
+#ifdef CONFIG_LGE_DISABLE_SECOND_SCREEN
 		qcom,mdss-dsi-v-top-border = <160>;
+#else
+		qcom,mdss-dsi-v-top-border = <0>;
+#endif
 		qcom,mdss-dsi-v-bottom-border = <0>;
 		qcom,mdss-dsi-bpp = <24>;
 		qcom,mdss-dsi-color-order = "rgb_swap_rgb";
@@ -39,7 +47,7 @@
 		qcom,mdss-dsi-lane-map = "lane_map_0123";
 		qcom,mdss-dsi-bllp-eof-power-mode;
 		qcom,mdss-dsi-bllp-power-mode;
-		qcom,panel-roi-alignment = <1440 16 1440 16 1440 16>;
+		qcom,panel-roi-alignment = <1440 160 1440 160 1440 160>;
 		qcom,mdss-dsi-lane-0-state;
 		qcom,mdss-dsi-lane-1-state;
 		qcom,mdss-dsi-lane-2-state;
@@ -54,7 +62,7 @@
 			20 1d 06 07 03 03 04 a0
 			20 1d 06 07 03 03 04 a0
 			20 13 06 07 03 03 04 a0		/* Clk lane */
-			];
+		];
 		qcom,mdss-dsi-reset-sequence = <1 10>, <0 10>, <1 10>;
 		qcom,mdss-dsi-t-clk-post = <0x0b>;
 		qcom,mdss-dsi-t-clk-pre = <0x25>;
@@ -91,7 +99,7 @@
 			/* Partial Area Set */
 			39 01 00 00 00 00 05 30 00 00 00 A3
 			/* TE line */
-			39 01 00 00 00 00 03 44 00 00
+			39 01 00 00 00 00 03 44 0A 8F
 			/* Tearing Effect Line on */
 			15 01 00 00 00 00 02 35 00
 			/* Write Display Brightness */
@@ -111,7 +119,7 @@
 			/* Panel Setting */
 			39 01 00 00 00 00 05 B7 61 75 EA A9
 			/* Touch Timing Control */
-			39 01 00 00 00 00 1F B8 70 01 04 40 BF F0 8B 00 00 18 33 04 01 40 01 45 F8 C1 21 00 00 10 01 15 01 0A A0 0A 0A 00
+			39 01 00 00 00 00 1F B8 70 02 90 40 BF F0 8B 00 00 18 33 04 01 40 01 45 F8 C1 21 00 00 10 01 15 01 0A A0 0A 0A 00
 			/* Touch Source Setting */
 			39 01 00 00 00 00 06 B9 64 64 2A 3F EE
 			/* Backlight Control */
@@ -149,7 +157,7 @@
 			/* Negative Gamma Curve for Blue */
 			39 01 00 00 00 00 0E D5 00 12 1E 2C 39 40 4F 45 38 28 15 00 03
 			/* Test1 */
-			39 01 00 00 00 00 05 ED 61 6A 00 87
+			39 01 00 00 00 00 05 ED 61 6A 00 82
 			/* CABC Test */
 			39 01 00 00 00 00 18 F9 20 40 60 80 A0 C0 E0 0B 1C 20 20 1F 10 18 00 B4 C0 CD DA E8 F0 F7 FF
 			/* CABC Test */
@@ -166,14 +174,14 @@
 			39 01 00 00 00 00 11 F6 40 40 40 40 40 40 40 40 00 00 00 00 00 00 00 00
 			/* Normal Display mode on */
 			05 01 00 00 00 00 01 13
-			];
+		];
 
 		qcom,mdss-display-on-command = [
 			/* Display On */
 			05 01 00 00 00 00 01 29
 			/* Sleep Out + min 90ms */
 			05 01 00 00 5A 00 01 11
-			];
+		];
 		qcom,mdss-dsi-on-command-state = "dsi_lp_mode";
 		qcom,mdss-dsi-off-command = [
 			/* Display Off */
@@ -299,12 +307,6 @@
 		];
 
 		qcom,mdss-dsi-reader-mode-command-state = "dsi_hs_mode";
-
-		qcom,mdss-dsi-screen-command = [
-			39 01 00 00 00 00 0E C7 00 00 00 00 00 00 00 00 00 00 00 00 00
-		];
-
-		qcom,mdss-dsi-screen-command-state = "dsi_hs_mode";
 
 		lge,blmap = <
 			0
@@ -496,53 +498,53 @@
 		qcom,mdss-dsc-scr-version = <0x1>;
 
 		dsi_sw49407_dsc_cmd_config0: config0 {
-		        qcom,mdss-dsc-encoders = <1>;
-		        qcom,mdss-dsc-slice-height = <16>;
-		        qcom,mdss-dsc-slice-width = <720>;
-		        qcom,mdss-dsc-slice-per-pkt = <2>;
+			qcom,mdss-dsc-encoders = <1>;
+			qcom,mdss-dsc-slice-height = <16>;
+			qcom,mdss-dsc-slice-width = <720>;
+			qcom,mdss-dsc-slice-per-pkt = <2>;
 
-		        qcom,mdss-dsc-bit-per-component = <8>;
-		        qcom,mdss-dsc-bit-per-pixel = <8>;
-		        qcom,mdss-dsc-block-prediction-enable;
+			qcom,mdss-dsc-bit-per-component = <8>;
+			qcom,mdss-dsc-bit-per-pixel = <8>;
+			qcom,mdss-dsc-block-prediction-enable;
 		};
 
 		dsi_sw49407_dsc_cmd_config1: config1 {
-		        qcom,lm-split = <720 720>;
-		        qcom,mdss-dsc-encoders = <1>; /* 3D Mux */
-		        qcom,mdss-dsc-slice-height = <16>;
-		        qcom,mdss-dsc-slice-width = <1440>;
-		        qcom,mdss-dsc-slice-per-pkt = <1>;
+			qcom,lm-split = <720 720>;
+			qcom,mdss-dsc-encoders = <1>; /* 3D Mux */
+			qcom,mdss-dsc-slice-height = <160>;
+			qcom,mdss-dsc-slice-width = <1440>;
+			qcom,mdss-dsc-slice-per-pkt = <1>;
 
-		        qcom,mdss-dsc-bit-per-component = <8>;
-		        qcom,mdss-dsc-bit-per-pixel = <8>;
-		        qcom,mdss-dsc-block-prediction-enable;
+			qcom,mdss-dsc-bit-per-component = <8>;
+			qcom,mdss-dsc-bit-per-pixel = <8>;
+			qcom,mdss-dsc-block-prediction-enable;
 		};
 
 		dsi_sw49407_dsc_cmd_config2: config2 {
-		        qcom,lm-split = <720 720>;
-		        qcom,mdss-dsc-encoders = <2>; /* DSC Merge */
-		        qcom,mdss-dsc-slice-height = <16>;
-		        qcom,mdss-dsc-slice-width = <720>;
-		        qcom,mdss-dsc-slice-per-pkt = <2>;
+			qcom,lm-split = <720 720>;
+			qcom,mdss-dsc-encoders = <2>; /* DSC Merge */
+			qcom,mdss-dsc-slice-height = <16>;
+			qcom,mdss-dsc-slice-width = <720>;
+			qcom,mdss-dsc-slice-per-pkt = <2>;
 
-		        qcom,mdss-dsc-bit-per-component = <8>;
-		        qcom,mdss-dsc-bit-per-pixel = <8>;
-		        qcom,mdss-dsc-block-prediction-enable;
+			qcom,mdss-dsc-bit-per-component = <8>;
+			qcom,mdss-dsc-bit-per-pixel = <8>;
+			qcom,mdss-dsc-block-prediction-enable;
 		};
 	};
 };
 &spmi_bus {
 	qcom,pmi8994@3 {
-			labibb: qpnp-labibb-regulator {
-				ibb_regulator: qcom,ibb@dc00 {
-					qcom,qpnp-ibb-init-voltage = <5500000>;
-					qcom,qpnp-ibb-init-lcd-voltage = <5500000>;
-				};
-				lab_regulator: qcom,lab@de00 {
-					qcom,qpnp-lab-init-voltage = <5500000>;
-					qcom,qpnp-lab-init-lcd-voltage = <5500000>;
-				};
+		labibb: qpnp-labibb-regulator {
+			ibb_regulator: qcom,ibb@dc00 {
+				qcom,qpnp-ibb-init-voltage = <5500000>;
+				qcom,qpnp-ibb-init-lcd-voltage = <5500000>;
 			};
+			lab_regulator: qcom,lab@de00 {
+				qcom,qpnp-lab-init-voltage = <5500000>;
+				qcom,qpnp-lab-init-lcd-voltage = <5500000>;
+			};
+		};
 	};
 };
 &mdss_fb0 {
