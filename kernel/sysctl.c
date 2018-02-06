@@ -1422,15 +1422,6 @@ static struct ctl_table vm_table[] = {
 		.mode		= 0644,
 		.proc_handler	= &proc_dointvec
 	},
-#ifdef CONFIG_HSWAP
-	{
-		.procname = "wmark_tune_level",
-		.data = &wmark_tune_level,
-		.maxlen = sizeof(wmark_tune_level),
-		.mode = 0644,
-		.proc_handler = wmark_tune_level_sysctl_handler,
-	},
-#endif
 	{
 		.procname	= "percpu_pagelist_fraction",
 		.data		= &percpu_pagelist_fraction,

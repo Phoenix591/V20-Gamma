@@ -1319,8 +1319,6 @@ static void hub_quiesce(struct usb_hub *hub, enum hub_quiescing_type type)
 	struct usb_device *hdev = hub->hdev;
 	int i;
 
-	cancel_delayed_work_sync(&hub->init_work);
-
 	/* hub_wq and related activity won't re-trigger */
 	hub->quiescing = 1;
 
@@ -1593,6 +1591,7 @@ static int hub_configure(struct usb_hub *hub,
 #else
 		hub->mA_per_port = unit_load;	/* 7.2.1 */
 #endif
+
 	} else {	/* Self-powered external hub */
 		/* FIXME: What about battery-powered external hubs that
 		 * provide less current per port? */
