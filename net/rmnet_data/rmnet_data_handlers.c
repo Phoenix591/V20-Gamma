@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -197,8 +197,14 @@ static void rmnet_reset_mac_header(struct sk_buff *skb)
  * Determines whether to pass the skb to the GRO handler napi_gro_receive() or
  * handle normally by passing to netif_receive_skb().
  *
- * Tuning this parameter will trade TCP slow start performance for power.
+ * Warning:
+ * This assumes that only TCP packets can be coalesced by the GRO handler which
+ * is not true in general. We lose the ability to use GRO for cases like UDP
+ * encapsulation protocols.
  *
+ * Return:
+ *      - RMNET_DATA_GRO_RCV_FAIL if packet is sent to netif_receive_skb()
+ *      - RMNET_DATA_GRO_RCV_PASS if packet is sent to napi_gro_receive()
  */
 static int rmnet_check_skb_can_gro(struct sk_buff *skb)
 {
@@ -402,10 +408,12 @@ static rx_handler_result_t _rmnet_map_ingress_handler(struct sk_buff *skb,
 		if (likely((ckresult == RMNET_MAP_CHECKSUM_OK)
 			    || (ckresult == RMNET_MAP_CHECKSUM_SKIPPED)))
 			skb->ip_summed |= CHECKSUM_UNNECESSARY;
-		else if (ckresult != RMNET_MAP_CHECKSUM_ERR_UNKNOWN_IP_VERSION
-			&& ckresult != RMNET_MAP_CHECKSUM_ERR_UNKNOWN_TRANSPORT
-			&& ckresult != RMNET_MAP_CHECKSUM_VALID_FLAG_NOT_SET
-			&& ckresult != RMNET_MAP_CHECKSUM_FRAGMENTED_PACKET) {
+		else if (ckresult !=
+				RMNET_MAP_CHECKSUM_ERR_UNKNOWN_IP_VERSION &&
+			ckresult != RMNET_MAP_CHECKSUM_ERR_UNKNOWN_TRANSPORT &&
+			ckresult != RMNET_MAP_CHECKSUM_VALID_FLAG_NOT_SET &&
+			ckresult != RMNET_MAP_CHECKSUM_VALIDATION_FAILED &&
+			ckresult != RMNET_MAP_CHECKSUM_FRAGMENTED_PACKET) {
 			rmnet_kfree_skb(skb,
 				RMNET_STATS_SKBFREE_INGRESS_BAD_MAP_CKSUM);
 			return RX_HANDLER_CONSUMED;
@@ -495,11 +503,9 @@ static int rmnet_map_egress_handler(struct sk_buff *skb,
 	LOGD("headroom of %d bytes", required_headroom);
 
 	if (skb_headroom(skb) < required_headroom) {
-		if (pskb_expand_head(skb, required_headroom, 0, GFP_KERNEL)) {
-			LOGD("Failed to add headroom of %d bytes",
-			     required_headroom);
-			return 1;
-		}
+		LOGE("Not enough headroom for %d bytes", required_headroom);
+		kfree_skb(skb);
+		return 1;
 	}
 
 	if ((config->egress_data_format & RMNET_EGRESS_FORMAT_MAP_CKSUMV3) ||
@@ -521,6 +527,7 @@ static int rmnet_map_egress_handler(struct sk_buff *skb,
 
 	if (!map_header) {
 		LOGD("%s", "Failed to add MAP header to egress packet");
+		kfree_skb(skb);
 		return 1;
 	}
 

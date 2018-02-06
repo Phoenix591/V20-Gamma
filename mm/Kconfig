@@ -764,12 +764,6 @@ config READAHEAD_MMAP_PAGE_CNT
 		2 ==>8 KB
 		1 ==>4 KB
 
-config LGE_ADAPTIVE_READAHEAD
-    bool "lge adaptive readahead set enable"
-	default n
-	help
-	  lge adaptive readahead set enable
-
 config CMA_PINPAGE_MIGRATION
 	bool "CMA pinned page migration (EXPERIMENTAL)"
 	default n

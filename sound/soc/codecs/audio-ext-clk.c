@@ -22,13 +22,18 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <dt-bindings/clock/msm-clocks-8996.h>
-#include <dt-bindings/clock/msm-clocks-californium.h>
+#include <dt-bindings/clock/msm-clocks-9650.h>
 #include <sound/q6afe-v2.h>
 
 enum clk_mux {
 	AP_CLK2,
 	LPASS_MCLK,
 	LPASS_MCLK2,
+};
+
+enum clk_enablement {
+	CLK_DISABLE = 0,
+	CLK_ENABLE,
 };
 
 struct pinctrl_info {

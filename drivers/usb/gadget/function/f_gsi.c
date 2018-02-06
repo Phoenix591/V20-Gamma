@@ -60,6 +60,22 @@ static int gsi_ctrl_send_notification(struct f_gsi *gsi,
 		enum gsi_ctrl_notify_state);
 static int gsi_alloc_trb_buffer(struct f_gsi *gsi);
 static void gsi_free_trb_buffer(struct f_gsi *gsi);
+static struct gsi_ctrl_pkt *gsi_ctrl_pkt_alloc(unsigned len, gfp_t flags);
+static void gsi_ctrl_pkt_free(struct gsi_ctrl_pkt *pkt);
+
+static inline bool usb_gsi_remote_wakeup_allowed(struct usb_function *f)
+{
+	bool remote_wakeup_allowed;
+
+	if (f->config->cdev->gadget->speed == USB_SPEED_SUPER)
+		remote_wakeup_allowed = f->func_wakeup_allowed;
+	else
+		remote_wakeup_allowed = f->config->cdev->gadget->remote_wakeup;
+
+	log_event_dbg("%s: remote_wakeup_allowed:%s", __func__,
+			remote_wakeup_allowed ? "true" : "false");
+	return remote_wakeup_allowed;
+}
 
 void post_event(struct gsi_data_port *port, u8 event)
 {
@@ -898,17 +914,21 @@ static int ipa_suspend_work_handler(struct gsi_data_port *d_port)
 	int ret = 0;
 	bool block_db, f_suspend;
 	struct f_gsi *gsi = d_port_to_gsi(d_port);
+	struct usb_function *f = &gsi->function;
 
-	f_suspend = gsi->function.func_wakeup_allowed;
+	f_suspend = f->func_wakeup_allowed;
+	log_event_dbg("%s: f_suspend:%d", __func__, f_suspend);
+
 	if (!usb_gsi_ep_op(gsi->d_port.in_ep, (void *) &f_suspend,
 				GSI_EP_OP_CHECK_FOR_SUSPEND)) {
 		ret = -EFAULT;
 		goto done;
 	}
-	log_event_dbg("%s: Calling xdci_suspend", __func__);
 
+	log_event_dbg("%s: Calling xdci_suspend", __func__);
 	ret = ipa_usb_xdci_suspend(gsi->d_port.out_channel_handle,
-				gsi->d_port.in_channel_handle, gsi->prot_id);
+				gsi->d_port.in_channel_handle, gsi->prot_id,
+				usb_gsi_remote_wakeup_allowed(f));
 
 	if (!ret) {
 		d_port->sm_state = STATE_SUSPENDED;

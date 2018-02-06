@@ -949,10 +949,6 @@ struct xfrm_dst {
 	struct flow_cache_object flo;
 	struct xfrm_policy *pols[XFRM_POLICY_TYPE_MAX];
 	int num_pols, num_xfrms;
-#ifdef CONFIG_XFRM_SUB_POLICY
-	struct flowi *origin;
-	struct xfrm_selector *partner;
-#endif
 	u32 xfrm_genid;
 	u32 policy_genid;
 	u32 route_mtu_cached;
@@ -968,12 +964,6 @@ static inline void xfrm_dst_destroy(struct xfrm_dst *xdst)
 	dst_release(xdst->route);
 	if (likely(xdst->u.dst.xfrm))
 		xfrm_state_put(xdst->u.dst.xfrm);
-#ifdef CONFIG_XFRM_SUB_POLICY
-	kfree(xdst->origin);
-	xdst->origin = NULL;
-	kfree(xdst->partner);
-	xdst->partner = NULL;
-#endif
 }
 #endif
 
@@ -1073,17 +1063,10 @@ static inline int __xfrm_policy_check2(struct sock *sk, int dir,
 
 	if (sk && sk->sk_policy[XFRM_POLICY_IN])
 		return __xfrm_policy_check(sk, ndir, skb, family);
-/* 201-03-23 ty.moon@lge.com LGP_DATA_KERNEL_CRASHFIX_XFRM_POLICY_CHECK2 [START] */
-/* TD #60721(case 01588795), the kernel panic issue seeing on the specific AP.
+
 	return	(!net->xfrm.policy_count[dir] && !skb->sp) ||
 		(skb_dst(skb)->flags & DST_NOPOLICY) ||
 		__xfrm_policy_check(sk, ndir, skb, family);
-*/
-       return	(!net->xfrm.policy_count[dir] && !skb->sp) ||
-	   ((skb_dst(skb)!= NULL) && (skb_dst(skb)->flags & DST_NOPOLICY)) ||
-	   __xfrm_policy_check(sk, ndir, skb, family);
-/* 201-03-23 ty.moon@lge.com LGP_DATA_KERNEL_CRASHFIX_XFRM_POLICY_CHECK2 [END] */
-
 }
 
 static inline int xfrm_policy_check(struct sock *sk, int dir, struct sk_buff *skb, unsigned short family)

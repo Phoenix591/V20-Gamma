@@ -74,6 +74,9 @@
 #include <linux/binfmts.h>
 #include <linux/context_tracking.h>
 #include <linux/compiler.h>
+#include <linux/cpufreq.h>
+#include <linux/syscore_ops.h>
+#include <linux/list_sort.h>
 
 #include <asm/switch_to.h>
 #include <asm/tlb.h>
@@ -2609,8 +2612,8 @@ prepare_task_switch(struct rq *rq, struct task_struct *prev,
 	if (use_app_setting)
 		switch_app_setting_bit(prev, next);
 
-	if (use_l2_app_setting)
-		switch_l2_app_setting_bit(prev, next);
+	if (use_32bit_app_setting || use_32bit_app_setting_pro)
+		switch_32bit_app_setting_bit(prev, next);
 #endif
 }
 
@@ -4756,7 +4759,7 @@ static void __cond_resched(void)
 
 int __sched _cond_resched(void)
 {
-	if (should_resched()) {
+	if (should_resched(0)) {
 		__cond_resched();
 		return 1;
 	}
@@ -4774,7 +4777,7 @@ EXPORT_SYMBOL(_cond_resched);
  */
 int __cond_resched_lock(spinlock_t *lock)
 {
-	int resched = should_resched();
+	int resched = should_resched(PREEMPT_LOCK_OFFSET);
 	int ret = 0;
 
 	lockdep_assert_held(lock);
@@ -4796,7 +4799,7 @@ int __sched __cond_resched_softirq(void)
 {
 	BUG_ON(!in_softirq());
 
-	if (should_resched()) {
+	if (should_resched(SOFTIRQ_DISABLE_OFFSET)) {
 		local_bh_enable();
 		__cond_resched();
 		local_bh_disable();

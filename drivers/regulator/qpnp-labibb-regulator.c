@@ -907,7 +907,6 @@ static int qpnp_lab_dt_init(struct qpnp_labibb *labibb,
 		return rc;
 	}
 
-	pr_err("[Display] labibb->lab_vreg.curr_volt %d\n", labibb->lab_vreg.curr_volt);
 	if (!of_property_read_bool(of_node,
 			"qcom,qpnp-lab-use-default-voltage")) {
 		if (labibb->lab_vreg.curr_volt < labibb->lab_vreg.min_volt) {

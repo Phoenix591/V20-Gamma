@@ -180,7 +180,7 @@ enum drm_map_type {
 	_DRM_SHM = 2,		  /**< shared, cached */
 	_DRM_AGP = 3,		  /**< AGP/GART */
 	_DRM_SCATTER_GATHER = 4,  /**< Scatter/gather memory for PCI DMA */
-	_DRM_CONSISTENT = 5,	  /**< Consistent memory for PCI DMA */
+	_DRM_CONSISTENT = 5	  /**< Consistent memory for PCI DMA */
 };
 
 /**
@@ -372,7 +372,11 @@ struct drm_buf_pub {
  */
 struct drm_buf_map {
 	int count;		/**< Length of the buffer list */
+#ifdef __cplusplus
+	void __user *virt;
+#else
 	void __user *virtual;		/**< Mmap'd area in user-virtual */
+#endif
 	struct drm_buf_pub __user *list;	/**< Buffer information */
 };
 
@@ -430,7 +434,7 @@ struct drm_draw {
  * DRM_IOCTL_UPDATE_DRAW ioctl argument type.
  */
 typedef enum {
-	DRM_DRAWABLE_CLIPRECTS,
+	DRM_DRAWABLE_CLIPRECTS
 } drm_drawable_info_type_t;
 
 struct drm_update_draw {
@@ -655,6 +659,13 @@ struct drm_get_cap {
  */
 #define DRM_CLIENT_CAP_UNIVERSAL_PLANES  2
 
+/**
+ * DRM_CLIENT_CAP_ATOMIC
+ *
+ * If set to 1, the DRM core will expose atomic properties to userspace
+ */
+#define DRM_CLIENT_CAP_ATOMIC	3
+
 /** DRM_IOCTL_SET_CLIENT_CAP ioctl argument type */
 struct drm_set_client_cap {
 	__u64 capability;
@@ -778,6 +789,9 @@ struct drm_prime_handle {
 #define DRM_IOCTL_MODE_OBJ_GETPROPERTIES	DRM_IOWR(0xB9, struct drm_mode_obj_get_properties)
 #define DRM_IOCTL_MODE_OBJ_SETPROPERTY	DRM_IOWR(0xBA, struct drm_mode_obj_set_property)
 #define DRM_IOCTL_MODE_CURSOR2		DRM_IOWR(0xBB, struct drm_mode_cursor2)
+#define DRM_IOCTL_MODE_ATOMIC		DRM_IOWR(0xBC, struct drm_mode_atomic)
+#define DRM_IOCTL_MODE_CREATEPROPBLOB	DRM_IOWR(0xBD, struct drm_mode_create_blob)
+#define DRM_IOCTL_MODE_DESTROYPROPBLOB	DRM_IOWR(0xBE, struct drm_mode_destroy_blob)
 
 /**
  * Device specific ioctls should only be in their respective headers

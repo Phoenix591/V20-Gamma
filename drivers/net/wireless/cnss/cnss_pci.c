@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,7 +29,6 @@
 #include <linux/pm_qos.h>
 #include <linux/pm_runtime.h>
 #include <linux/esoc_client.h>
-#include <linux/pinctrl/consumer.h>
 #include <linux/firmware.h>
 #include <linux/dma-mapping.h>
 #include <linux/msm-bus.h>
@@ -118,11 +117,11 @@
 #define WLAN_VREG_IO_DELAY_MIN	100
 #define WLAN_VREG_IO_DELAY_MAX	1000
 #define WLAN_ENABLE_DELAY	10
+#define PCIE_SWITCH_DELAY       20
 #define WLAN_RECOVERY_DELAY	1
 #define PCIE_ENABLE_DELAY	100
 #define WLAN_BOOTSTRAP_DELAY	10
 #define EVICT_BIN_MAX_SIZE      (512*1024)
-#define CNSS_PINCTRL_STATE_ACTIVE "default"
 
 static DEFINE_SPINLOCK(pci_link_down_lock);
 
@@ -137,7 +136,6 @@ static DEFINE_SPINLOCK(pci_link_down_lock);
 #define FW_IMAGE_MISSION	(0x02)
 #define FW_IMAGE_BDATA		(0x03)
 #define FW_IMAGE_PRINT		(0x04)
-#define FW_SETUP_DELAY		2000
 
 #define SEG_METADATA		(0x01)
 #define SEG_NON_PAGED		(0x02)
@@ -153,8 +151,6 @@ struct cnss_wlan_gpio_info {
 	bool state;
 	bool init;
 	bool prop;
-	struct pinctrl *pinctrl;
-	struct pinctrl_state *gpio_state_default;
 };
 
 struct cnss_wlan_vreg_info {
@@ -279,10 +275,8 @@ static struct cnss_data {
 	u32 fw_dma_size;
 	u32 fw_seg_count;
 	struct segment_memory fw_seg_mem[MAX_NUM_OF_SEGMENTS];
-	atomic_t fw_store_in_progress;
 	/* Firmware setup complete lock */
 	struct mutex fw_setup_stat_lock;
-	struct completion fw_setup_complete;
 	void *bdata_cpu;
 	dma_addr_t bdata_dma;
 	u32 bdata_dma_size;
@@ -292,6 +286,7 @@ static struct cnss_data {
 	atomic_t auto_suspended;
 	bool monitor_wake_intr;
 	struct cnss_dual_wifi dual_wifi_info;
+	struct cnss_dev_platform_ops platform_ops;
 } *penv;
 
 static unsigned int pcie_link_down_panic;
@@ -581,11 +576,6 @@ static void cnss_wlan_gpio_set(struct cnss_wlan_gpio_info *info, bool state)
 		return;
 	}
 
-	if (state == WLAN_EN_LOW && penv->dual_wifi_info.is_dual_wifi_enabled) {
-		pr_debug("%s Dual WiFi enabled\n", __func__);
-		return;
-	}
-
 	gpio_set_value(info->num, state);
 	info->state = state;
 
@@ -609,30 +599,6 @@ static int cnss_configure_wlan_en_gpio(bool state)
 	}
 
 	msleep(WLAN_ENABLE_DELAY);
-	return ret;
-}
-
-static int cnss_pinctrl_init(struct cnss_wlan_gpio_info *gpio_info,
-			     struct platform_device *pdev)
-{
-	int ret;
-
-	gpio_info->pinctrl = devm_pinctrl_get(&pdev->dev);
-	if (IS_ERR_OR_NULL(gpio_info->pinctrl)) {
-		pr_err("%s: Failed to get pinctrl!\n", __func__);
-		return PTR_ERR(gpio_info->pinctrl);
-	}
-
-	gpio_info->gpio_state_default = pinctrl_lookup_state(gpio_info->pinctrl,
-		CNSS_PINCTRL_STATE_ACTIVE);
-	if (IS_ERR_OR_NULL(gpio_info->gpio_state_default)) {
-		pr_err("%s: Can not get active pin state!\n", __func__);
-		return PTR_ERR(gpio_info->gpio_state_default);
-	}
-
-	ret = pinctrl_select_state(gpio_info->pinctrl,
-				   gpio_info->gpio_state_default);
-
 	return ret;
 }
 
@@ -742,10 +708,6 @@ static int cnss_get_wlan_enable_gpio(
 			pr_err(
 			"can't get gpio %s ret %d", gpio_info->name, ret);
 	}
-
-	ret = cnss_pinctrl_init(gpio_info, pdev);
-	if (ret)
-		pr_debug("%s: pinctrl init failed!\n", __func__);
 
 	ret = cnss_wlan_gpio_init(gpio_info);
 	if (ret)
@@ -1437,15 +1399,6 @@ int cnss_get_fw_image(struct image_desc_info *image_desc_info)
 	    !penv->fw_seg_count || !penv->bdata_seg_count)
 		return -EINVAL;
 
-	/* Check for firmware setup trigger by usersapce is in progress
-	 * and wait for complition of firmware setup.
-	 */
-
-	if (atomic_read(&penv->fw_store_in_progress)) {
-		wait_for_completion_timeout(&penv->fw_setup_complete,
-					    msecs_to_jiffies(FW_SETUP_DELAY));
-	}
-
 	mutex_lock(&penv->fw_setup_stat_lock);
 	image_desc_info->fw_addr = penv->fw_dma;
 	image_desc_info->fw_size = penv->fw_dma_size;
@@ -1628,6 +1581,31 @@ int cnss_msm_pcie_enumerate(u32 rc_idx)
 }
 #endif
 
+static void cnss_pcie_set_platform_ops(struct device *dev)
+{
+	struct cnss_dev_platform_ops *pf_ops = &penv->platform_ops;
+
+	pf_ops->request_bus_bandwidth = cnss_pci_request_bus_bandwidth;
+	pf_ops->get_virt_ramdump_mem = cnss_pci_get_virt_ramdump_mem;
+	pf_ops->device_self_recovery = cnss_pci_device_self_recovery;
+	pf_ops->schedule_recovery_work = cnss_pci_schedule_recovery_work;
+	pf_ops->device_crashed = cnss_pci_device_crashed;
+	pf_ops->get_wlan_mac_address = cnss_pci_get_wlan_mac_address;
+	pf_ops->set_wlan_mac_address = cnss_pcie_set_wlan_mac_address;
+	pf_ops->power_up = cnss_pcie_power_up;
+	pf_ops->power_down = cnss_pcie_power_down;
+
+	dev->platform_data = pf_ops;
+}
+
+static void cnss_pcie_reset_platform_ops(struct device *dev)
+{
+	struct cnss_dev_platform_ops *pf_ops = &penv->platform_ops;
+
+	memset(pf_ops, 0, sizeof(struct cnss_dev_platform_ops));
+	dev->platform_data = NULL;
+}
+
 static int cnss_wlan_pci_probe(struct pci_dev *pdev,
 			       const struct pci_device_id *id)
 {
@@ -1638,6 +1616,7 @@ static int cnss_wlan_pci_probe(struct pci_dev *pdev,
 	struct codeswap_codeseg_info *cnss_seg_info = NULL;
 	struct device *dev = &pdev->dev;
 
+	cnss_pcie_set_platform_ops(dev);
 	penv->pdev = pdev;
 	penv->id = id;
 	atomic_set(&penv->fw_available, 0);
@@ -1699,7 +1678,9 @@ static int cnss_wlan_pci_probe(struct pci_dev *pdev,
 		goto err_pcie_suspend;
 	}
 
+	mutex_lock(&penv->fw_setup_stat_lock);
 	cnss_wlan_fw_mem_alloc(pdev);
+	mutex_unlock(&penv->fw_setup_stat_lock);
 
 	ret = device_create_file(&penv->pldev->dev, &dev_attr_wlan_setup);
 
@@ -1746,6 +1727,7 @@ end_dma_alloc:
 err_unknown:
 err_pcie_suspend:
 smmu_init_fail:
+	cnss_pcie_reset_platform_ops(dev);
 	return ret;
 }
 
@@ -1757,6 +1739,7 @@ static void cnss_wlan_pci_remove(struct pci_dev *pdev)
 		return;
 
 	dev = &penv->pldev->dev;
+	cnss_pcie_reset_platform_ops(dev);
 	device_remove_file(dev, &dev_attr_wlan_setup);
 
 	if (penv->smmu_mapping)
@@ -1772,6 +1755,9 @@ static int cnss_wlan_pci_suspend(struct device *dev)
 	pm_message_t state = { .event = PM_EVENT_SUSPEND };
 
 	if (!penv)
+		goto out;
+
+	if (!penv->pcie_link_state)
 		goto out;
 
 	wdriver = penv->driver;
@@ -1799,6 +1785,9 @@ static int cnss_wlan_pci_resume(struct device *dev)
 	struct pci_dev *pdev = to_pci_dev(dev);
 
 	if (!penv)
+		goto out;
+
+	if (!penv->pcie_link_state)
 		goto out;
 
 	wdriver = penv->driver;
@@ -1946,17 +1935,11 @@ static ssize_t fw_image_setup_store(struct device *dev,
 	if (!penv)
 		return -ENODEV;
 
-	if (atomic_read(&penv->fw_store_in_progress)) {
-		pr_info("%s: Firmware setup in progress\n", __func__);
-		return 0;
-	}
-
-	atomic_set(&penv->fw_store_in_progress, 1);
-	init_completion(&penv->fw_setup_complete);
+	mutex_lock(&penv->fw_setup_stat_lock);
+	pr_info("%s: Firmware setup in progress\n", __func__);
 
 	if (kstrtoint(buf, 0, &val)) {
-		atomic_set(&penv->fw_store_in_progress, 0);
-		complete(&penv->fw_setup_complete);
+		mutex_unlock(&penv->fw_setup_stat_lock);
 		return -EINVAL;
 	}
 
@@ -1967,8 +1950,7 @@ static ssize_t fw_image_setup_store(struct device *dev,
 		if (ret != 0) {
 			pr_err("%s: Invalid parsing of FW image files %d",
 			       __func__, ret);
-			atomic_set(&penv->fw_store_in_progress, 0);
-			complete(&penv->fw_setup_complete);
+			mutex_unlock(&penv->fw_setup_stat_lock);
 			return -EINVAL;
 		}
 		penv->fw_image_setup = val;
@@ -1978,9 +1960,8 @@ static ssize_t fw_image_setup_store(struct device *dev,
 		penv->bmi_test = val;
 	}
 
-	atomic_set(&penv->fw_store_in_progress, 0);
-	complete(&penv->fw_setup_complete);
-
+	pr_info("%s: Firmware setup completed\n", __func__);
+	mutex_unlock(&penv->fw_setup_stat_lock);
 	return count;
 }
 
@@ -2079,16 +2060,21 @@ int cnss_get_codeswap_struct(struct codeswap_codeseg_info *swap_seg)
 {
 	struct codeswap_codeseg_info *cnss_seg_info = penv->cnss_seg_info;
 
+	mutex_lock(&penv->fw_setup_stat_lock);
 	if (!cnss_seg_info) {
 		swap_seg = NULL;
+		mutex_unlock(&penv->fw_setup_stat_lock);
 		return -ENOENT;
 	}
+
 	if (!atomic_read(&penv->fw_available)) {
 		pr_debug("%s: fw is not available\n", __func__);
+		mutex_unlock(&penv->fw_setup_stat_lock);
 		return -ENOENT;
 	}
 
 	*swap_seg = *cnss_seg_info;
+	mutex_unlock(&penv->fw_setup_stat_lock);
 
 	return 0;
 }
@@ -2107,17 +2093,8 @@ static void cnss_wlan_memory_expansion(void)
 	u_int32_t total_length = 0;
 	struct pci_dev *pdev;
 
-	filename = cnss_wlan_get_evicted_data_file();
-	/* Check for firmware setup trigger by usersapce is in progress
-	 * and wait for complition of firmware setup.
-	 */
-
-	if (atomic_read(&penv->fw_store_in_progress)) {
-		wait_for_completion_timeout(&penv->fw_setup_complete,
-					    msecs_to_jiffies(FW_SETUP_DELAY));
-	}
-
 	mutex_lock(&penv->fw_setup_stat_lock);
+	filename = cnss_wlan_get_evicted_data_file();
 	pdev = penv->pdev;
 	dev = &pdev->dev;
 	cnss_seg_info = penv->cnss_seg_info;
@@ -2685,6 +2662,13 @@ static int cnss_powerup(const struct subsys_desc *subsys)
 
 	msleep(POWER_ON_DELAY);
 	cnss_configure_wlan_en_gpio(WLAN_EN_HIGH);
+	/**
+	 *  Some platforms have wifi and other PCIE card attached with PCIE
+	 *  switch on the same RC like P5459 board(ROME 3.2 PCIE card + Ethernet
+	 *  PCI), it will need extra time to stable the signals when do SSR,
+	 *  otherwise fail to create the PCIE link, so add PCIE_SWITCH_DELAY.
+	 */
+	msleep(PCIE_SWITCH_DELAY);
 
 	if (!pdev) {
 		pr_err("%d: invalid pdev\n", __LINE__);
@@ -2926,6 +2910,7 @@ static int cnss_probe(struct platform_device *pdev)
 	penv->vreg_info.wlan_reg = NULL;
 	penv->vreg_info.state = VREG_OFF;
 	penv->pci_register_again = false;
+	mutex_init(&penv->fw_setup_stat_lock);
 
 	ret = cnss_wlan_get_resources(pdev);
 	if (ret)
@@ -3086,8 +3071,6 @@ skip_ramdump:
 	memset(phys_to_virt(0), 0, SZ_4K);
 #endif
 
-	atomic_set(&penv->fw_store_in_progress, 0);
-	mutex_init(&penv->fw_setup_stat_lock);
 	ret = device_create_file(dev, &dev_attr_fw_image_setup);
 	if (ret) {
 		pr_err("cnss: fw_image_setup sys file creation failed\n");
@@ -3185,6 +3168,9 @@ static struct platform_driver cnss_driver = {
 		.name = "cnss",
 		.owner = THIS_MODULE,
 		.of_match_table = cnss_dt_match,
+#ifdef CONFIG_CNSS_ASYNC
+		.probe_type = PROBE_PREFER_ASYNCHRONOUS,
+#endif
 	},
 };
 
@@ -3506,6 +3492,9 @@ int cnss_pm_runtime_request(struct device *dev,
 		break;
 	case CNSS_PM_REQUEST_RESUME:
 		ret = pm_request_resume(dev);
+		break;
+	case CNSS_PM_GET_NORESUME:
+		pm_runtime_get_noresume(dev);
 		break;
 	default:
 		ret = -EINVAL;
@@ -3851,7 +3840,7 @@ int cnss_pcie_power_down(struct device *dev)
 	return ret;
 }
 
-module_init(cnss_initialize);
+fs_initcall(cnss_initialize);
 module_exit(cnss_exit);
 
 MODULE_LICENSE("GPL v2");

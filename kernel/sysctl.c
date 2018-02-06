@@ -106,9 +106,6 @@ extern unsigned int core_pipe_limit;
 extern int pid_max;
 extern int extra_free_kbytes;
 extern int min_free_order_shift;
-#ifdef CONFIG_HSWAP
-extern int wmark_tune_level;
-#endif
 extern int pid_max_min, pid_max_max;
 extern int percpu_pagelist_fraction;
 extern int compat_log;
@@ -178,7 +175,7 @@ extern int no_unaligned_warning;
 #define SYSCTL_WRITES_WARN	 0
 #define SYSCTL_WRITES_STRICT	 1
 
-static int sysctl_writes_strict = SYSCTL_WRITES_WARN;
+static int sysctl_writes_strict = SYSCTL_WRITES_STRICT;
 
 static int proc_do_cad_pid(struct ctl_table *table, int write,
 		  void __user *buffer, size_t *lenp, loff_t *ppos);
@@ -1192,6 +1189,17 @@ static struct ctl_table kern_table[] = {
 		.proc_handler	= proc_dointvec,
 	},
 #endif
+#ifdef CONFIG_ARCH_MMAP_RND_BITS
+	{
+		.procname	= "mmap_rnd_bits",
+		.data		= &mmap_rnd_bits,
+		.maxlen		= sizeof(mmap_rnd_bits),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_minmax,
+		.extra1		= &mmap_rnd_bits_min,
+		.extra2		= &mmap_rnd_bits_max,
+	},
+#endif
 	{ }
 /*
  * NOTE: do not add new entries to this table unless you have read
@@ -1613,7 +1621,7 @@ static struct ctl_table vm_table[] = {
 		.maxlen		= sizeof(sysctl_swap_ratio_enable),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec_minmax,
-    },
+	},
 #endif
 #ifdef CONFIG_HAVE_ARCH_MMAP_RND_BITS
 	{

@@ -88,61 +88,11 @@ static char *inode_to_filename(struct inode *inode)
 	return filename;
 }
 
-static int pfk_inode_alloc_security(struct inode *inode)
-{
-	struct inode_security_struct *i_sec = NULL;
-
-	if (inode == NULL)
-		return -EINVAL;
-
-	i_sec = kzalloc(sizeof(*i_sec), GFP_KERNEL);
-
-	if (i_sec == NULL)
-		return -ENOMEM;
-
-	inode->i_security = i_sec;
-
-	return 0;
-}
-
-static void pfk_inode_free_security(struct inode *inode)
-{
-	if (inode == NULL)
-		return;
-
-	kzfree(inode->i_security);
-}
-
-static struct security_operations pfk_security_ops = {
-	.name			= "pfk",
-
-	.inode_alloc_security	= pfk_inode_alloc_security,
-	.inode_free_security	= pfk_inode_free_security,
-
-	.allow_merge_bio	= pfk_allow_merge_bio,
-};
-
 static int __init pfk_lsm_init(void)
 {
-	int ret;
-
-	/* Check if PFK is the chosen lsm via security_module_enable() */
-	if (security_module_enable(&pfk_security_ops)) {
-		/* replace null callbacks with empty callbacks */
-		security_fixup_ops(&pfk_security_ops);
-		ret = register_security(&pfk_security_ops);
-		if (ret != 0) {
-			pr_err("pfk lsm registeration failed, ret=%d.\n", ret);
-			return ret;
-		}
-		pr_debug("pfk is the chosen lsm, registered successfully !\n");
-	} else {
-		pr_debug("pfk is not the chosen lsm.\n");
-		if (!selinux_is_enabled()) {
-			pr_err("se linux is not enabled.\n");
-			return -ENODEV;
-		}
-
+	if (!selinux_is_enabled()) {
+		pr_err("se linux is not enabled.\n");
+		return -ENODEV;
 	}
 
 	return 0;
@@ -153,11 +103,10 @@ static int __init pfk_lsm_init(void)
  *
  * Return: true if the driver is ready.
  */
-inline bool pfk_is_ready(void)
+static inline bool pfk_is_ready(void)
 {
 	return pfk_ready;
 }
-EXPORT_SYMBOL(pfk_is_ready);
 
 /**
  * pfk_get_page_index() - get the inode from a bio.
@@ -457,7 +406,6 @@ int pfk_load_key_start(const struct bio *bio,
 	void *ecryptfs_data = NULL;
 	u32 key_index = 0;
 	struct inode *inode = NULL;
-	struct key *keyring_key = NULL;
 
 	if (!is_pfe) {
 		pr_err("is_pfe is NULL\n");
@@ -478,89 +426,39 @@ int pfk_load_key_start(const struct bio *bio,
 		return -EINVAL;
 	}
 
-	if (bio->bi_crypt_ctx.bc_flags & BC_ENCRYPT_FL) {
-		struct user_key_payload *ukp;
-		struct ext4_encryption_key *master_key;
-		if (!(bio->bi_crypt_ctx.bc_flags & BC_AES_256_XTS_FL)) {
-			printk(KERN_WARNING "%s: Unsupported mode\n", __func__);
-			return -EINVAL;
-		}
-		if (bio->bi_crypt_ctx.bc_key_size !=
-		    (PFK_SUPPORTED_KEY_SIZE + PFK_SUPPORTED_SALT_SIZE)) {
-			printk(KERN_WARNING
-			       "%s: Unsupported key size. Expected [%d], "
-			       "got [%d]\n", __func__,
-			       (PFK_SUPPORTED_KEY_SIZE +
-				PFK_SUPPORTED_SALT_SIZE),
-			       bio->bi_crypt_ctx.bc_key_size);
-			return -EINVAL;
-		}
-		key_size = PFK_SUPPORTED_KEY_SIZE;
-		salt_size = PFK_SUPPORTED_SALT_SIZE;
-		algo_mode = ICE_CRYPTO_ALGO_MODE_AES_XTS;
-		key_size_type = ICE_CRYPTO_KEY_SIZE_256;
-		keyring_key = bio->bi_crypt_ctx.bc_keyring_key;
-		BUG_ON(!keyring_key);
-try_lock_key:
-		ret = down_read_trylock(&keyring_key->sem);
-		if (!ret)
-			goto try_lock_key;
-		ukp = ((struct user_key_payload *)keyring_key->payload.data);
-		if (ukp->datalen != sizeof(struct ext4_encryption_key)) {
-			up_read(&keyring_key->sem);
-			return -ENOKEY;
-		}
-		master_key = (struct ext4_encryption_key *)ukp->data;
-		if (master_key->size != PFK_AES_256_XTS_KEY_SIZE) {
-			printk_once(KERN_WARNING "%s: key size incorrect: %d\n",
-				    __func__, master_key->size);
-			up_read(&keyring_key->sem);
-			return -ENOKEY;
-		}
-		key = &master_key->raw[0];
-		salt = &master_key->raw[PFK_SUPPORTED_KEY_SIZE];
-	} else {
-		ret = pfk_bio_to_key(bio, &key, &key_size, &salt, &salt_size,
-				     is_pfe);
-		if (ret != 0)
-			return ret;
+	ret = pfk_bio_to_key(bio, &key, &key_size, &salt, &salt_size, is_pfe);
+	if (ret != 0)
+		return ret;
 
-		inode = pfk_bio_get_inode(bio);
-		if (!inode) {
-			*is_pfe = false;
-			return -EINVAL;
-		}
-
-		ecryptfs_data = pfk_get_ecryptfs_data(inode);
-		if (!ecryptfs_data) {
-			*is_pfe = false;
-			return -EPERM;
-		}
-
-		ret = pfk_parse_cipher(ecryptfs_data, &algo_mode);
-		if (ret != 0) {
-			pr_err("not supported cipher\n");
-			return ret;
-		}
-
-		ret = pfk_key_size_to_key_type(key_size, &key_size_type);
-		if (ret != 0)
-			return ret;
+	inode = pfk_bio_get_inode(bio);
+	if (!inode) {
+		*is_pfe = false;
+		return -EINVAL;
 	}
-#if 0  /* debug */
-	printk(KERN_WARNING "%s: Loading key w/ key[0:1] == [%.2x%.2x] and "
-	       "salt[0:1] == [%.2x%.2x] into key_index [%d]\n", __func__,
-	       key[0], key[1], salt[0], salt[1], key_index);
-#endif
+
+	ecryptfs_data = pfk_get_ecryptfs_data(inode);
+	if (!ecryptfs_data) {
+		*is_pfe = false;
+		return -EPERM;
+	}
+
+	ret = pfk_parse_cipher(ecryptfs_data, &algo_mode);
+	if (ret != 0) {
+		pr_err("not supported cipher\n");
+		return ret;
+	}
+
+	ret = pfk_key_size_to_key_type(key_size, &key_size_type);
+	if (ret != 0)
+		return ret;
+
 	ret = pfk_kc_load_key_start(key, key_size, salt, salt_size, &key_index,
 			async);
-	if (keyring_key)
-		up_read(&keyring_key->sem);
 	if (ret) {
-		if (ret != -EBUSY && ret != -EAGAIN) {
-			pr_err("start: could not load key into pfk key cache, "
-			       "error %d\n", ret);
-		}
+		if (ret != -EBUSY && ret != -EAGAIN)
+			pr_err("start: could not load key into pfk key cache, error %d\n",
+					ret);
+
 		return ret;
 	}
 

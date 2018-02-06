@@ -3135,7 +3135,7 @@ static int qpnp_lbc_parallel_probe(struct spmi_device *spmi)
 	}
 
 	chip->parallel_psy.name		= "usb-parallel";
-	chip->parallel_psy.type		= POWER_SUPPLY_TYPE_USB_PARALLEL;
+	chip->parallel_psy.type		= POWER_SUPPLY_TYPE_PARALLEL;
 	chip->parallel_psy.get_property	= qpnp_lbc_parallel_get_property;
 	chip->parallel_psy.set_property	= qpnp_lbc_parallel_set_property;
 	chip->parallel_psy.properties	= qpnp_lbc_parallel_properties;

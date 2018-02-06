@@ -87,9 +87,9 @@
 #define BUCKET_COUNT		8
 #define BUCKET_SOC_PCT		(256 / BUCKET_COUNT)
 
-#define BCL_MA_TO_ADC(_current, _adc_val) {			\
-		_adc_val = (u8)((_current) * 100 / 976);	\
-	}
+#define BCL_MA_TO_ADC(_current, _adc_val) {		\
+	_adc_val = (u8)((_current) * 100 / 976);	\
+}
 
 #ifdef CONFIG_LGE_PM
 #define CONFIG_LGE_PM_BATT_PROFILE
@@ -124,7 +124,6 @@ enum {
 #define REVID_VARIANT			1
 #define REVID_ANA_MAJOR			2
 #define REVID_DIG_MAJOR			3
-
 
 enum dig_major {
 	DIG_REV_1 = 0x1,
@@ -266,28 +265,28 @@ enum fg_mem_data_index {
 
 static struct fg_mem_setting settings[FG_MEM_SETTING_MAX] = {
 	/*       ID                    Address, Offset, Value*/
-	SETTING(SOFT_COLD,			0x454,   0,      100),
-	SETTING(SOFT_HOT,			0x454,   1,      400),
-	SETTING(HARD_COLD,			0x454,   2,      50),
-	SETTING(HARD_HOT,			0x454,   3,      450),
-	SETTING(RESUME_SOC,			0x45C,   1,      0),
-	SETTING(BCL_LM_THRESHOLD,	0x47C,   2,      50),
-	SETTING(BCL_MH_THRESHOLD,	0x47C,   3,      752),
-	SETTING(TERM_CURRENT,		0x40C,   2,      250),
-	SETTING(CHG_TERM_CURRENT,	0x4F8,   2,      250),
-	SETTING(IRQ_VOLT_EMPTY,		0x458,   3,      3100),
-	SETTING(CUTOFF_VOLTAGE,		0x40C,   0,      3200),
-	SETTING(VBAT_EST_DIFF,		0x000,   0,      30),
-	SETTING(DELTA_SOC,			0x450,   3,      1),
-	SETTING(BATT_LOW,			0x458,   0,      4200),
-	SETTING(THERM_DELAY,		0x4AC,   3,      0),
+	SETTING(SOFT_COLD,       0x454,   0,      100),
+	SETTING(SOFT_HOT,        0x454,   1,      400),
+	SETTING(HARD_COLD,       0x454,   2,      50),
+	SETTING(HARD_HOT,        0x454,   3,      450),
+	SETTING(RESUME_SOC,      0x45C,   1,      0),
+	SETTING(BCL_LM_THRESHOLD, 0x47C,   2,      50),
+	SETTING(BCL_MH_THRESHOLD, 0x47C,   3,      752),
+	SETTING(TERM_CURRENT,	 0x40C,   2,      250),
+	SETTING(CHG_TERM_CURRENT, 0x4F8,   2,      250),
+	SETTING(IRQ_VOLT_EMPTY,	 0x458,   3,      3100),
+	SETTING(CUTOFF_VOLTAGE,	 0x40C,   0,      3200),
+	SETTING(VBAT_EST_DIFF,	 0x000,   0,      30),
+	SETTING(DELTA_SOC,	 0x450,   3,      1),
+	SETTING(BATT_LOW,	 0x458,   0,      4200),
+	SETTING(THERM_DELAY,	 0x4AC,   3,      0),
 };
 
 #define DATA(_idx, _address, _offset, _length,  _value)	\
 	[FG_DATA_##_idx] = {				\
 		.address = _address,			\
 		.offset = _offset,			\
-		.len = _length,				\
+		.len = _length,			\
 		.value = _value,			\
 	}						\
 
@@ -375,8 +374,8 @@ static int temp_comp[NUMBER_DELTA_TEMP][2] = {
 
 static int fg_debug_mask;
 module_param_named(
-		   debug_mask, fg_debug_mask, int, S_IRUSR | S_IWUSR
-		   );
+	debug_mask, fg_debug_mask, int, S_IRUSR | S_IWUSR
+);
 
 static int fg_reset_on_lockup;
 
@@ -385,18 +384,18 @@ static int fg_restart;
 
 static int fg_est_dump;
 module_param_named(
-		   first_est_dump, fg_est_dump, int, S_IRUSR | S_IWUSR
-		   );
+	first_est_dump, fg_est_dump, int, S_IRUSR | S_IWUSR
+);
 
 static char *fg_batt_type;
 module_param_named(
-		   battery_type, fg_batt_type, charp, S_IRUSR | S_IWUSR
-		   );
+	battery_type, fg_batt_type, charp, S_IRUSR | S_IWUSR
+);
 
 static int fg_sram_update_period_ms = 30000;
 module_param_named(
-		   sram_update_period_ms, fg_sram_update_period_ms, int, S_IRUSR | S_IWUSR
-		   );
+	sram_update_period_ms, fg_sram_update_period_ms, int, S_IRUSR | S_IWUSR
+);
 
 #ifdef CONFIG_LGE_PM
 static int fg_lge_debug = 0;
@@ -482,25 +481,25 @@ struct register_offset {
 
 static struct register_offset offset[] = {
 	[0] = {
-		/* CFG   CTL   LSB   RD0   WD0 */
+			 /* CFG   CTL   LSB   RD0   WD0 */
 		.address = {0x40, 0x41, 0x42, 0x4C, 0x48},
 	},
 	[1] = {
-		/* CFG   CTL   LSB   RD0   WD0 */
+			 /* CFG   CTL   LSB   RD0   WD0 */
 		.address = {0x50, 0x51, 0x61, 0x67, 0x63},
 	},
 };
 
-#define MEM_INTF_CFG(chip)					\
-	((chip)->mem_base + (chip)->offset[MEM_INTF_CFG])
-#define MEM_INTF_CTL(chip)					\
-	((chip)->mem_base + (chip)->offset[MEM_INTF_CTL])
-#define MEM_INTF_ADDR_LSB(chip)					\
-	((chip)->mem_base + (chip)->offset[MEM_INTF_ADDR_LSB])
-#define MEM_INTF_RD_DATA0(chip)					\
-	((chip)->mem_base + (chip)->offset[MEM_INTF_RD_DATA0])
-#define MEM_INTF_WR_DATA0(chip)					\
-	((chip)->mem_base + (chip)->offset[MEM_INTF_WR_DATA0])
+#define MEM_INTF_CFG(chip)	\
+		((chip)->mem_base + (chip)->offset[MEM_INTF_CFG])
+#define MEM_INTF_CTL(chip)	\
+		((chip)->mem_base + (chip)->offset[MEM_INTF_CTL])
+#define MEM_INTF_ADDR_LSB(chip) \
+		((chip)->mem_base + (chip)->offset[MEM_INTF_ADDR_LSB])
+#define MEM_INTF_RD_DATA0(chip) \
+		((chip)->mem_base + (chip)->offset[MEM_INTF_RD_DATA0])
+#define MEM_INTF_WR_DATA0(chip) \
+		((chip)->mem_base + (chip)->offset[MEM_INTF_WR_DATA0])
 
 struct fg_wakeup_source {
 	struct wakeup_source	source;
@@ -713,13 +712,12 @@ struct fg_chip {
 	int			batt_temp_low_limit;
 	int			batt_temp_high_limit;
 	/* Validating CC_SOC */
-	struct work_struct			cc_soc_store_work;
-	struct fg_wakeup_source		cc_soc_wakeup_source;
+	struct work_struct	cc_soc_store_work;
+	struct fg_wakeup_source	cc_soc_wakeup_source;
 	int			cc_soc_limit_pct;
-	bool		use_last_cc_soc;
-	int64_t 	last_cc_soc;
-        /* Sanity check */
-
+	bool			use_last_cc_soc;
+	int64_t			last_cc_soc;
+	/* Sanity check */
 	struct delayed_work	check_sanity_work;
 	struct fg_wakeup_source	sanity_wakeup_source;
 	u8			last_beat_count;
@@ -861,14 +859,14 @@ static int fg_write(struct fg_chip *chip, u8 *val, u16 addr, int len)
 
 	if ((addr & 0xff00) == 0) {
 		pr_err("addr cannot be zero base=0x%02x sid=0x%02x rc=%d\n",
-		       addr, spmi->sid, rc);
+			addr, spmi->sid, rc);
 		return -EINVAL;
 	}
 
 	rc = spmi_ext_register_writel(spmi->ctrl, spmi->sid, addr, val, len);
 	if (rc) {
 		pr_err("write failed addr=0x%02x sid=0x%02x rc=%d\n",
-		       addr, spmi->sid, rc);
+			addr, spmi->sid, rc);
 		return rc;
 	}
 
@@ -890,14 +888,14 @@ static int fg_read(struct fg_chip *chip, u8 *val, u16 addr, int len)
 
 	if ((addr & 0xff00) == 0) {
 		pr_err("base cannot be zero base=0x%02x sid=0x%02x rc=%d\n",
-		       addr, spmi->sid, rc);
+			addr, spmi->sid, rc);
 		return -EINVAL;
 	}
 
 	rc = spmi_ext_register_readl(spmi->ctrl, spmi->sid, addr, val, len);
 	if (rc) {
 		pr_err("SPMI read failed base=0x%02x sid=0x%02x rc=%d\n", addr,
-		       spmi->sid, rc);
+				spmi->sid, rc);
 		return rc;
 	}
 
@@ -1048,7 +1046,7 @@ static inline int fg_assert_sram_access(struct fg_chip *chip)
 #define INTF_CTL_BURST		BIT(7)
 #define INTF_CTL_WR_EN		BIT(6)
 static int fg_config_access(struct fg_chip *chip, bool write,
-			    bool burst)
+		bool burst)
 {
 	int rc;
 	u8 intf_ctl = 0;
@@ -1071,7 +1069,7 @@ static int fg_req_and_wait_access(struct fg_chip *chip, int timeout)
 
 	if (!fg_check_sram_access(chip)) {
 		rc = fg_masked_write(chip, MEM_INTF_CFG(chip),
-				     RIF_MEM_ACCESS_REQ, RIF_MEM_ACCESS_REQ, 1);
+			RIF_MEM_ACCESS_REQ, RIF_MEM_ACCESS_REQ, 1);
 		if (rc) {
 			pr_err("failed to set mem access bit\n");
 			return -EIO;
@@ -1079,11 +1077,11 @@ static int fg_req_and_wait_access(struct fg_chip *chip, int timeout)
 		fg_stay_awake(&chip->memif_wakeup_source);
 	}
 
- wait:
+wait:
 	/* Wait for MEM_AVAIL IRQ. */
 	ret = wait_for_completion_interruptible_timeout(
-							&chip->sram_access_granted,
-							msecs_to_jiffies(timeout));
+			&chip->sram_access_granted,
+			msecs_to_jiffies(timeout));
 	/* If we were interrupted wait again one more time. */
 	if (ret == -ERESTARTSYS && !tried_again) {
 		tried_again = true;
@@ -1102,7 +1100,7 @@ static int fg_release_access(struct fg_chip *chip)
 	int rc;
 
 	rc = fg_masked_write(chip, MEM_INTF_CFG(chip),
-			     RIF_MEM_ACCESS_REQ, 0, 1);
+			RIF_MEM_ACCESS_REQ, 0, 1);
 	fg_relax(&chip->memif_wakeup_source);
 	reinit_completion(&chip->sram_access_granted);
 
@@ -1142,10 +1140,10 @@ static int fg_set_ram_addr(struct fg_chip *chip, u16 *address)
 	int rc;
 
 	rc = fg_write(chip, (u8 *) address,
-		      chip->mem_base + chip->offset[MEM_INTF_ADDR_LSB], 2);
+		chip->mem_base + chip->offset[MEM_INTF_ADDR_LSB], 2);
 	if (rc) {
 		pr_err("spmi write failed: addr=%03X, rc=%d\n",
-		       chip->mem_base + chip->offset[MEM_INTF_ADDR_LSB], rc);
+			chip->mem_base + chip->offset[MEM_INTF_ADDR_LSB], rc);
 		return rc;
 	}
 
@@ -1276,7 +1274,7 @@ static int calc_tuned_temp(int temp)
 
 #define BUF_LEN		4
 static int fg_sub_mem_read(struct fg_chip *chip, u8 *val, u16 address, int len,
-			   int offset)
+		int offset)
 {
 	int rc, total_len;
 	u8 *rd_data = val;
@@ -1297,11 +1295,11 @@ static int fg_sub_mem_read(struct fg_chip *chip, u8 *val, u16 address, int len,
 	while (len > 0) {
 		if (!offset) {
 			rc = fg_read(chip, rd_data, MEM_INTF_RD_DATA0(chip),
-				     min(len, BUF_LEN));
+							min(len, BUF_LEN));
 		} else {
 			rc = fg_read(chip, rd_data,
-				     MEM_INTF_RD_DATA0(chip) + offset,
-				     min(len, BUF_LEN - offset));
+				MEM_INTF_RD_DATA0(chip) + offset,
+				min(len, BUF_LEN - offset));
 
 			/* manually set address to allow continous reads */
 			address += BUF_LEN;
@@ -1312,7 +1310,7 @@ static int fg_sub_mem_read(struct fg_chip *chip, u8 *val, u16 address, int len,
 		}
 		if (rc) {
 			pr_err("spmi read failed: addr=%03x, rc=%d\n",
-			       MEM_INTF_RD_DATA0(chip) + offset, rc);
+				MEM_INTF_RD_DATA0(chip) + offset, rc);
 			return rc;
 		}
 		rd_data += (BUF_LEN - offset);
@@ -1328,7 +1326,7 @@ static int fg_sub_mem_read(struct fg_chip *chip, u8 *val, u16 address, int len,
 }
 
 static int fg_conventional_mem_read(struct fg_chip *chip, u8 *val, u16 address,
-				    int len, int offset, bool keep_access)
+		int len, int offset, bool keep_access)
 {
 	int rc = 0, user_cnt = 0, orig_address = address;
 

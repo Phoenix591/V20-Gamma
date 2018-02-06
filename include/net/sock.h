@@ -70,8 +70,6 @@
 #include <linux/net_tstamp.h>
 #include <net/tcp_states.h>
 
-//add_to_scale
-#define TCP_BACKLOG_SCALE 4
 struct cgroup;
 struct cgroup_subsys;
 #ifdef CONFIG_NET
@@ -425,6 +423,7 @@ struct sock {
 	void			*sk_security;
 #endif
 	__u32			sk_mark;
+	kuid_t			sk_uid;
 	u32			sk_classid;
 	struct cg_proto		*sk_cgrp;
 	void			(*sk_state_change)(struct sock *sk);
@@ -716,9 +715,6 @@ enum sock_flags {
 		     */
 	SOCK_FILTER_LOCKED, /* Filter cannot be changed anymore */
 	SOCK_SELECT_ERR_QUEUE, /* Wake select on error queue */
-	#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-	SOCK_MPTCP, /* MPTCP set on this socket */
-	#endif
 };
 
 #define SK_FLAGS_TIMESTAMP ((1UL << SOCK_TIMESTAMP) | (1UL << SOCK_TIMESTAMPING_RX_SOFTWARE))
@@ -824,9 +820,7 @@ static inline bool sk_rcvqueues_full(const struct sock *sk, unsigned int limit)
 static inline __must_check int sk_add_backlog(struct sock *sk, struct sk_buff *skb,
 					      unsigned int limit)
 {
-//add_to_scale	
-	//if (sk_rcvqueues_full(sk, limit))
-	if (sk_rcvqueues_full(sk, limit * TCP_BACKLOG_SCALE))
+	if (sk_rcvqueues_full(sk, limit))
 		return -ENOBUFS;
 
 	/*
@@ -930,18 +924,6 @@ void sk_set_memalloc(struct sock *sk);
 void sk_clear_memalloc(struct sock *sk);
 
 int sk_wait_data(struct sock *sk, long *timeo);
-
-#ifdef CONFIG_LGP_DATA_TCPIP_MPTCP
-/* START - needed for MPTCP */
-struct sock *sk_prot_alloc(struct proto *prot, gfp_t priority, int family);
-void sock_lock_init(struct sock *sk);
-
-extern struct lock_class_key af_callback_keys[AF_MAX];
-extern char *const af_family_clock_key_strings[AF_MAX+1];
-
-#define SK_FLAGS_TIMESTAMP ((1UL << SOCK_TIMESTAMP) | (1UL << SOCK_TIMESTAMPING_RX_SOFTWARE))
-/* END - needed for MPTCP */
-#endif
 
 struct request_sock_ops;
 struct timewait_sock_ops;
@@ -1756,12 +1738,18 @@ static inline void sock_graft(struct sock *sk, struct socket *parent)
 	sk->sk_wq = parent->wq;
 	parent->sk = sk;
 	sk_set_socket(sk, parent);
+	sk->sk_uid = SOCK_INODE(parent)->i_uid;
 	security_sock_graft(sk, parent);
 	write_unlock_bh(&sk->sk_callback_lock);
 }
 
 kuid_t sock_i_uid(struct sock *sk);
 unsigned long sock_i_ino(struct sock *sk);
+
+static inline kuid_t sock_net_uid(const struct net *net, const struct sock *sk)
+{
+	return sk ? sk->sk_uid : make_kuid(net->user_ns, 0);
+}
 
 static inline struct dst_entry *
 __sk_dst_get(struct sock *sk)

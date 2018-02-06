@@ -644,7 +644,17 @@ resizefs_out:
 			goto encryption_policy_out;
 		}
 
+		err = mnt_want_write_file(filp);
+		if (err)
+			goto encryption_policy_out;
+
+		mutex_lock(&inode->i_mutex);
+
 		err = ext4_process_policy(&policy, inode);
+
+		mutex_unlock(&inode->i_mutex);
+
+		mnt_drop_write_file(filp);
 encryption_policy_out:
 		return err;
 #else
@@ -682,8 +692,8 @@ encryption_policy_out:
 			if (err)
 				return err;
 		}
-		if (copy_to_user((void *) arg, sbi->s_es->s_encrypt_pw_salt,
-				 16))
+		if (copy_to_user((void __user *) arg,
+				 sbi->s_es->s_encrypt_pw_salt, 16))
 			return -EFAULT;
 		return 0;
 	}
@@ -697,7 +707,7 @@ encryption_policy_out:
 		err = ext4_get_policy(inode, &policy);
 		if (err)
 			return err;
-		if (copy_to_user((void *)arg, &policy, sizeof(policy)))
+		if (copy_to_user((void __user *)arg, &policy, sizeof(policy)))
 			return -EFAULT;
 		return 0;
 #else

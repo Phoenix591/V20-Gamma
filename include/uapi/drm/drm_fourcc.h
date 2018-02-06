@@ -34,6 +34,13 @@
 /* color index */
 #define DRM_FORMAT_C8		fourcc_code('C', '8', ' ', ' ') /* [7:0] C */
 
+/* 8 bpp Red */
+#define DRM_FORMAT_R8		fourcc_code('R', '8', ' ', ' ') /* [7:0] R */
+
+/* 16 bpp RG */
+#define DRM_FORMAT_RG88		fourcc_code('R', 'G', '8', '8') /* [15:0] R:G 8:8 little endian */
+#define DRM_FORMAT_GR88		fourcc_code('G', 'R', '8', '8') /* [15:0] G:R 8:8 little endian */
+
 /* 8 bpp RGB */
 #define DRM_FORMAT_RGB332	fourcc_code('R', 'G', 'B', '8') /* [7:0] R:G:B 3:3:2 */
 #define DRM_FORMAT_BGR233	fourcc_code('B', 'G', 'R', '8') /* [7:0] B:G:R 2:3:3 */
@@ -109,9 +116,6 @@
 #define DRM_FORMAT_NV24		fourcc_code('N', 'V', '2', '4') /* non-subsampled Cr:Cb plane */
 #define DRM_FORMAT_NV42		fourcc_code('N', 'V', '4', '2') /* non-subsampled Cb:Cr plane */
 
-/* special NV12 tiled format */
-#define DRM_FORMAT_NV12MT	fourcc_code('T', 'M', '1', '2') /* 2x2 subsampled Cr:Cb plane 64x32 macroblocks */
-
 /*
  * 3 plane YCbCr
  * index 0: Y plane, [7:0] Y
@@ -163,6 +167,67 @@
  * similar to the fourcc codes above. drm_fourcc.h is considered the
  * authoritative source for all of these.
  */
+
+/* Intel framebuffer modifiers */
+
+/*
+ * Intel X-tiling layout
+ *
+ * This is a tiled layout using 4Kb tiles (except on gen2 where the tiles 2Kb)
+ * in row-major layout. Within the tile bytes are laid out row-major, with
+ * a platform-dependent stride. On top of that the memory can apply
+ * platform-depending swizzling of some higher address bits into bit6.
+ *
+ * This format is highly platforms specific and not useful for cross-driver
+ * sharing. It exists since on a given platform it does uniquely identify the
+ * layout in a simple way for i915-specific userspace.
+ */
+#define I915_FORMAT_MOD_X_TILED	fourcc_mod_code(INTEL, 1)
+
+/*
+ * Intel Y-tiling layout
+ *
+ * This is a tiled layout using 4Kb tiles (except on gen2 where the tiles 2Kb)
+ * in row-major layout. Within the tile bytes are laid out in OWORD (16 bytes)
+ * chunks column-major, with a platform-dependent height. On top of that the
+ * memory can apply platform-depending swizzling of some higher address bits
+ * into bit6.
+ *
+ * This format is highly platforms specific and not useful for cross-driver
+ * sharing. It exists since on a given platform it does uniquely identify the
+ * layout in a simple way for i915-specific userspace.
+ */
+#define I915_FORMAT_MOD_Y_TILED	fourcc_mod_code(INTEL, 2)
+
+/*
+ * Intel Yf-tiling layout
+ *
+ * This is a tiled layout using 4Kb tiles in row-major layout.
+ * Within the tile pixels are laid out in 16 256 byte units / sub-tiles which
+ * are arranged in four groups (two wide, two high) with column-major layout.
+ * Each group therefore consits out of four 256 byte units, which are also laid
+ * out as 2x2 column-major.
+ * 256 byte units are made out of four 64 byte blocks of pixels, producing
+ * either a square block or a 2:1 unit.
+ * 64 byte blocks of pixels contain four pixel rows of 16 bytes, where the width
+ * in pixel depends on the pixel depth.
+ */
+#define I915_FORMAT_MOD_Yf_TILED fourcc_mod_code(INTEL, 3)
+
+/*
+ * Tiled, NV12MT, grouped in 64 (pixels) x 32 (lines) -sized macroblocks
+ *
+ * Macroblocks are laid in a Z-shape, and each pixel data is following the
+ * standard NV12 style.
+ * As for NV12, an image is the result of two frame buffers: one for Y,
+ * one for the interleaved Cb/Cr components (1/2 the height of the Y buffer).
+ * Alignment requirements are (for each buffer):
+ * - multiple of 128 pixels for the width
+ * - multiple of  32 pixels for the height
+ *
+ * For more information: see http://linuxtv.org/downloads/v4l-dvb-apis/re32.html
+ */
+#define DRM_FORMAT_MOD_SAMSUNG_64_32_TILE	fourcc_mod_code(SAMSUNG, 1)
 
 /*
  * Qualcomm Compressed Format

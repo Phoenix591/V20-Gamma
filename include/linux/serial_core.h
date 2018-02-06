@@ -301,7 +301,6 @@ static inline int uart_poll_timeout(struct uart_port *port)
 /*
  * Console helpers.
  */
-#ifdef CONFIG_SERIAL_EARLYCON
 struct earlycon_device {
 	struct console *con;
 	struct uart_port port;
@@ -320,7 +319,6 @@ static int __init name ## _setup_earlycon(char *buf) \
 	return setup_earlycon(buf, __stringify(name), func); \
 } \
 early_param("earlycon", name ## _setup_earlycon);
-#endif
 
 #define OF_EARLYCON_DECLARE(name, compat, fn)				\
 	_OF_DECLARE(earlycon, name, compat, fn, void *)

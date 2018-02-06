@@ -75,6 +75,7 @@
 #include <linux/uprobes.h>
 #include <linux/aio.h>
 #include <linux/compiler.h>
+#include <linux/kcov.h>
 
 #include <asm/pgtable.h>
 #include <asm/pgalloc.h>
@@ -148,7 +149,6 @@ void __weak arch_release_thread_info(struct thread_info *ti)
  * kmemcache based allocator.
  */
 # if THREAD_SIZE >= PAGE_SIZE
-#ifdef DONT_USE_THREAD_INFO_MEMPOOL
 static struct thread_info *alloc_thread_info_node(struct task_struct *tsk,
 						  int node)
 {
@@ -163,51 +163,6 @@ static inline void free_thread_info(struct thread_info *ti)
 	kasan_alloc_pages(virt_to_page(ti), THREAD_SIZE_ORDER);
 	free_kmem_pages((unsigned long)ti, THREAD_SIZE_ORDER);
 }
-#else
-static mempool_t *thread_info_pool;
-
-static void *mempool_alloc_kmem_pages_noswap(gfp_t gfp_mask, void *pool_data)
-{
-	int order = (int)(long)pool_data;
-	if (!(gfp_mask & __GFP_WAIT))
-		gfp_mask |= __GFP_NO_KSWAPD;
-	return alloc_kmem_pages(gfp_mask, order);
-}
-
-static void mempool_free_kmem_pages(void *element, void *pool_data)
-{
-	int order = (int)(long)pool_data;
-	kasan_alloc_pages(element, order);
-	__free_kmem_pages(element, order);
-}
-
-static struct thread_info *alloc_thread_info_node(struct task_struct *tsk,
-						  int node)
-{
-	struct page *page = mempool_alloc(thread_info_pool, THREADINFO_GFP);
-
-	return page ? page_address(page) : NULL;
-}
-static inline void free_thread_info(struct thread_info *ti)
-{
-	mempool_free((void *)virt_to_page((unsigned long)ti), thread_info_pool);
-}
-
-static  __init int thread_info_pool_init(int init_reserved_alloc_nr)
-{
-	thread_info_pool = mempool_create_node(init_reserved_alloc_nr,
-					mempool_alloc_kmem_pages_noswap, mempool_free_kmem_pages,
-					(void *)THREAD_SIZE_ORDER,
-					GFP_KERNEL, NUMA_NO_NODE);
-
-	return thread_info_pool ? true : false;
-}
-void __init thread_info_cache_init(void)
-{
-	thread_info_pool_init(768);
-	BUG_ON(thread_info_pool == NULL);
-}
-#endif
 # else
 static struct kmem_cache *thread_info_cache;
 
@@ -385,8 +340,6 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	if (err)
 		goto free_ti;
 
-	tsk->flags &= ~PF_SU;
-
 	tsk->stack = ti;
 #ifdef CONFIG_SECCOMP
 	/*
@@ -404,7 +357,7 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	set_task_stack_end_magic(tsk);
 
 #ifdef CONFIG_CC_STACKPROTECTOR
-	tsk->stack_canary = get_random_int();
+	tsk->stack_canary = get_random_long();
 #endif
 
 	/*
@@ -419,6 +372,8 @@ static struct task_struct *dup_task_struct(struct task_struct *orig)
 	tsk->task_frag.page = NULL;
 
 	account_kernel_stack(ti, 1);
+
+	kcov_task_init(tsk);
 
 	return tsk;
 
@@ -637,9 +592,6 @@ static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p)
 	clear_tlb_flush_pending(mm);
 #if defined(CONFIG_TRANSPARENT_HUGEPAGE) && !USE_SPLIT_PMD_PTLOCKS
 	mm->pmd_huge_pte = NULL;
-#endif
-#ifdef CONFIG_MSM_APP_SETTINGS
-	mm->app_setting = 0;
 #endif
 
 	if (current->mm) {

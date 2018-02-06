@@ -306,6 +306,8 @@ static int idletimer_tg_create(struct idletimer_tg_info *info)
 		pr_debug("couldn't add file to sysfs");
 		goto out_free_attr;
 	}
+	/* notify userspace */
+	kobject_uevent(idletimer_tg_kobj, KOBJ_ADD);
 
 	list_add(&info->timer->entry, &idletimer_tg_list);
 
@@ -393,9 +395,7 @@ static unsigned int idletimer_tg_target(struct sk_buff *skb,
 
 	BUG_ON(!info->timer);
 
-	spin_lock_bh(&timestamp_lock);
 	info->timer->active = true;
-	spin_unlock_bh(&timestamp_lock);
 
 	if (time_before(info->timer->timer.expires, now)) {
 		schedule_work(&info->timer->work);

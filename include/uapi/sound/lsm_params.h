@@ -1,6 +1,9 @@
 #ifndef _UAPI_LSM_PARAMS_H__
 #define _UAPI_LSM_PARAMS_H__
 
+#define LSM_POLLING_ENABLE_SUPPORT
+#define LSM_EVENT_TIMESTAMP_MODE_SUPPORT
+
 #include <linux/types.h>
 #include <sound/asound.h>
 
@@ -17,6 +20,9 @@
 
 #define LSM_OUT_TRANSFER_MODE_RT (0)
 #define LSM_OUT_TRANSFER_MODE_FTRT (1)
+
+#define LSM_EVENT_NON_TIME_STAMP_MODE (0)
+#define LSM_EVENT_TIME_STAMP_MODE (1)
 
 enum lsm_app_id {
 	LSM_VOICE_WAKEUP_APP_ID = 1,

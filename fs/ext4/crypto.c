@@ -34,6 +34,7 @@
 #include <linux/random.h>
 #include <linux/scatterlist.h>
 #include <linux/spinlock_types.h>
+#include <linux/namei.h>
 
 #include "ext4_extents.h"
 #include "xattr.h"
@@ -270,7 +271,7 @@ static int ext4_page_crypto(struct inode *inode,
 	struct crypto_ablkcipher *tfm = ci->ci_ctfm;
 	int res = 0;
 
-	req = ablkcipher_request_alloc(tfm, GFP_NOFS);
+	req = ablkcipher_request_alloc(tfm, gfp_flags);
 	if (!req) {
 		printk_ratelimited(KERN_ERR
 				   "%s: crypto_request_alloc() failed\n",
@@ -429,7 +430,8 @@ int ext4_encrypted_zeroout(struct inode *inode, struct ext4_extent *ex)
 			goto errout;
 		}
 		bio->bi_bdev = inode->i_sb->s_bdev;
-		bio->bi_iter.bi_sector = pblk << (inode->i_sb->s_blocksize_bits - 9);
+		bio->bi_iter.bi_sector =
+			pblk << (inode->i_sb->s_blocksize_bits - 9);
 		ret = bio_add_page(bio, ciphertext_page,
 				   inode->i_sb->s_blocksize, 0);
 		if (ret != inode->i_sb->s_blocksize) {
@@ -457,8 +459,7 @@ errout:
 
 bool ext4_valid_contents_enc_mode(uint32_t mode)
 {
-	return (mode == EXT4_ENCRYPTION_MODE_AES_256_XTS ||
-		mode == EXT4_ENCRYPTION_MODE_PRIVATE);
+	return (mode == EXT4_ENCRYPTION_MODE_AES_256_XTS);
 }
 
 /**
@@ -486,18 +487,15 @@ static int ext4_d_revalidate(struct dentry *dentry, unsigned int flags)
 	struct ext4_crypt_info *ci;
 	int dir_has_key, cached_with_key;
 
+	if (flags & LOOKUP_RCU)
+		return -ECHILD;
+
 	dir = dget_parent(dentry);
 	if (!ext4_encrypted_inode(d_inode(dir))) {
 		dput(dir);
 		return 0;
 	}
 	ci = EXT4_I(d_inode(dir))->i_crypt_info;
-
-	if (ci && ci->ci_keyring_key &&
-	    (ci->ci_keyring_key->flags & ((1 << KEY_FLAG_INVALIDATED) |
-					  (1 << KEY_FLAG_REVOKED) |
-					  (1 << KEY_FLAG_DEAD))))
-		ci = NULL;
 
 	/* this should eventually be an flag in d_flags */
 	cached_with_key = dentry->d_fsdata != NULL;

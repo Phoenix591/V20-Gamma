@@ -73,8 +73,6 @@
 
 #define QSEED3_LUT_REGIONS	4
 
-#define QCT_DITHER_CONFIG_PATCH /*temp patch for DITHER CONFIG error SR#02443144*/
-
 enum pp_block_opmodes {
 	PP_OPMODE_VIG = 1,
 	PP_OPMODE_DSPP,

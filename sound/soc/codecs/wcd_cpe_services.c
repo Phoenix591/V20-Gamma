@@ -333,7 +333,7 @@ static int cpe_register_write_repeat(u32 reg, u8 *ptr, u32 to_write)
 	struct wcd9xxx *wcd9xxx = dev_get_drvdata(codec->dev->parent);
 	int ret = 0;
 
-	ret = wcd9xxx_slim_write_repeat(wcd9xxx, reg, to_write, ptr);
+	ret = wcd9xxx_bus_write_repeat(wcd9xxx, reg, to_write, ptr);
 	if (ret != 0)
 		pr_err("%s: slim_write_repeat failed\n", __func__);
 
@@ -418,7 +418,6 @@ unlock_and_exit:
 
 static void cpe_create_worker_thread(struct cpe_info *t_info)
 {
-	pr_debug("%s:\n", __func__);
 	INIT_LIST_HEAD(&t_info->main_queue);
 	init_completion(&t_info->cmd_complete);
 	init_completion(&t_info->thread_comp);

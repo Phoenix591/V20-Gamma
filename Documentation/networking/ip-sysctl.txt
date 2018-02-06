@@ -645,18 +645,6 @@ tcp_challenge_ack_limit - INTEGER
 	in RFC 5961 (Improving TCP's Robustness to Blind In-Window Attacks)
 	Default: 100
 
-MPTCP variables:
-
-mptcp_enabled - INTEGER
-	Enable or disable Multipath TCP for new connections.
-	Possible values are:
-
-	0: Multipath TCP is disabled on all TCP-sockets that are newly created.
-	1: Multipath TCP is enabled by default on all new TCP-sockets. Note that
-	   existing sockets in LISTEN-state will still use regular TCP.
-	2: Enables Multipath TCP only upon the request of the application
-	   throught the socket-option MPTCP_ENABLED.
-
 UDP variables:
 
 udp_mem - vector of 3 INTEGERs: min, pressure, max
@@ -1293,11 +1281,20 @@ accept_ra_pinfo - BOOLEAN
 	Functional default: enabled if accept_ra is enabled.
 			    disabled if accept_ra is disabled.
 
+accept_ra_rt_info_min_plen - INTEGER
+	Minimum prefix length of Route Information in RA.
+
+	Route Information w/ prefix smaller than this variable shall
+	be ignored.
+
+	Functional default: 0 if accept_ra_rtr_pref is enabled.
+			    -1 if accept_ra_rtr_pref is disabled.
+
 accept_ra_rt_info_max_plen - INTEGER
 	Maximum prefix length of Route Information in RA.
 
-	Route Information w/ prefix larger than or equal to this
-	variable shall be ignored.
+	Route Information w/ prefix larger than this variable shall
+	be ignored.
 
 	Functional default: 0 if accept_ra_rtr_pref is enabled.
 			    -1 if accept_ra_rtr_pref is disabled.
@@ -1312,6 +1309,13 @@ accept_ra_prefix_route - BOOLEAN
 	Set the prefix route for the autoconfigured interface address
 
 	Functional default: enabled
+
+accept_ra_mtu - BOOLEAN
+	Apply the MTU value specified in RA option 5 (RFC4861). If
+	disabled, the MTU specified in the RA will be ignored.
+
+	Functional default: enabled if accept_ra is enabled.
+			    disabled if accept_ra is disabled.
 
 accept_redirects - BOOLEAN
 	Accept Redirects.

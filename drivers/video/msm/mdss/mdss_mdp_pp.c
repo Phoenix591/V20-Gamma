@@ -197,7 +197,7 @@ struct mdp_csc_cfg mdp_csc_10bit_convert[MDSS_MDP_MAX_CSC] = {
 			0x0254, 0xff37, 0xfe60,
 			0x0254, 0x0409, 0x0000,
 		},
-		{ 0xffc0, 0xffe0, 0xffe0,},
+		{ 0xffc0, 0xfe00, 0xfe00,},
 		{ 0x0, 0x0, 0x0,},
 		{ 0x40, 0x3ac, 0x40, 0x3c0, 0x40, 0x3c0,},
 		{ 0x0, 0x3ff, 0x0, 0x3ff, 0x0, 0x3ff,},
@@ -209,7 +209,7 @@ struct mdp_csc_cfg mdp_csc_10bit_convert[MDSS_MDP_MAX_CSC] = {
 			0x0200, 0xff50, 0xfe92,
 			0x0200, 0x038b, 0x0000,
 		},
-		{ 0x0000, 0xffe0, 0xffe0,},
+		{ 0x0000, 0xfe00, 0xfe00,},
 		{ 0x0, 0x0, 0x0,},
 		{ 0x0, 0x3ff, 0x0, 0x3ff, 0x0, 0x3ff,},
 		{ 0x0, 0x3ff, 0x0, 0x3ff, 0x0, 0x3ff,},
@@ -1169,7 +1169,7 @@ static int pp_vig_pipe_setup(struct mdss_mdp_pipe *pipe, u32 *op)
 		 */
 #if !defined(CONFIG_LGE_CAM_PREVIEW_TUNE)
 		mdss_mdp_csc_setup(MDSS_MDP_BLOCK_SSPP, pipe->num,
-				pp_vig_csc_pipe_val(pipe));
+			   pp_vig_csc_pipe_val(pipe));
 #else
 		if(cam_preview_tune_status == 1) {
 				mdss_mdp_csc_setup_data(MDSS_MDP_BLOCK_SSPP, pipe->num,
@@ -4414,11 +4414,7 @@ static int mdss_mdp_panel_default_dither_config(struct msm_fb_data_type *mfd,
 	struct mdp_pp_feature_version dither_version = {
 		.pp_feature = DITHER,
 	};
-#ifdef QCT_DITHER_CONFIG_PATCH
-	struct mdp_dither_data_v1_7 dither_data = {0,};
-#else
 	struct mdp_dither_data_v1_7 dither_data;
-#endif
 
 	if (!mdss_mdp_mfd_valid_dspp(mfd)) {
 		pr_debug("dither config not supported on display num %d\n",
@@ -5782,9 +5778,9 @@ int mdss_mdp_ad_config(struct msm_fb_data_type *mfd,
 	if (!ret && (init_cfg->ops & MDP_PP_OPS_DISABLE)) {
 		ad->sts &= ~PP_STS_ENABLE;
 		mutex_unlock(&ad->lock);
-		#if defined(CONFIG_LGE_PP_AD_SUPPORTED)
+#if defined(CONFIG_LGE_PP_AD_SUPPORTED)
 		lge_mdss_fb_ad_set_brightness(mfd, 0, 0);
-		#endif
+#endif
 		cancel_work_sync(&ad->calc_work);
 		mutex_lock(&ad->lock);
 		ad->mfd = NULL;

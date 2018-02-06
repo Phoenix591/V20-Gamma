@@ -87,7 +87,6 @@
 #define SMB_MASK(LEFT_BIT_POS, RIGHT_BIT_POS) \
 		_SMB_MASK((LEFT_BIT_POS) - (RIGHT_BIT_POS) + 1, \
 				(RIGHT_BIT_POS))
-
 /* Config registers */
 struct smbchg_regulator {
 	struct regulator_desc	rdesc;
@@ -100,8 +99,8 @@ struct parallel_usb_cfg {
 	int				min_9v_current_thr_ma;
 	int				allowed_lowering_ma;
 	int				current_max_ma;
-	bool			avail;
-	struct mutex	lock;
+	bool				avail;
+	struct mutex			lock;
 	int				initial_aicl_ma;
 	ktime_t			last_disabled;
 	bool			enabled_once;
@@ -121,15 +120,15 @@ struct ilim_map {
 };
 
 struct smbchg_version_tables {
-	const int		*dc_ilim_ma_table;
+	const int			*dc_ilim_ma_table;
 	int				dc_ilim_ma_len;
-	const int		*usb_ilim_ma_table;
+	const int			*usb_ilim_ma_table;
 	int				usb_ilim_ma_len;
-	const int		*iterm_ma_table;
+	const int			*iterm_ma_table;
 	int				iterm_ma_len;
-	const int		*fcc_comp_table;
+	const int			*fcc_comp_table;
 	int				fcc_comp_len;
-	const int		*aicl_rerun_period_table;
+	const int			*aicl_rerun_period_table;
 	int				aicl_rerun_period_len;
 	int				rchg_thr_mv;
 };
@@ -142,39 +141,39 @@ struct smbchg_version_tables {
 struct smbchg_chip {
 	struct device			*dev;
 	struct spmi_device		*spmi;
-	int						schg_version;
+	int				schg_version;
 
 	/* peripheral register address bases */
-	u16					chgr_base;
-	u16					bat_if_base;
-	u16					usb_chgpth_base;
-	u16					dc_chgpth_base;
-	u16					otg_base;
-	u16					misc_base;
+	u16				chgr_base;
+	u16				bat_if_base;
+	u16				usb_chgpth_base;
+	u16				dc_chgpth_base;
+	u16				otg_base;
+	u16				misc_base;
 
-	int					fake_battery_soc;
-	u8					revision[4];
+	int				fake_battery_soc;
+	u8				revision[4];
 
 	/* configuration parameters */
-	int					iterm_ma;
-	int					usb_max_current_ma;
-	int					typec_current_ma;
-	int					dc_max_current_ma;
-	int					dc_target_current_ma;
-	int					cfg_fastchg_current_ma;
-	int					fastchg_current_ma;
-	int					vfloat_mv;
-	int					fastchg_current_comp;
-	int					float_voltage_comp;
-	int					resume_delta_mv;
-	int					safety_time;
-	int					prechg_safety_time;
-	int					bmd_pin_src;
-	int					jeita_temp_hard_limit;
+	int				iterm_ma;
+	int				usb_max_current_ma;
+	int				typec_current_ma;
+	int				dc_max_current_ma;
+	int				dc_target_current_ma;
+	int				cfg_fastchg_current_ma;
+	int				fastchg_current_ma;
+	int				vfloat_mv;
+	int				fastchg_current_comp;
+	int				float_voltage_comp;
+	int				resume_delta_mv;
+	int				safety_time;
+	int				prechg_safety_time;
+	int				bmd_pin_src;
+	int				jeita_temp_hard_limit;
+	int				aicl_rerun_period_s;
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
 	u8              	vbat_low_thr;
 #endif
-	int					aicl_rerun_period_s;
 	bool				use_vfloat_adjustments;
 	bool				iterm_disabled;
 	bool				bmd_algo_disabled;
@@ -195,10 +194,10 @@ struct smbchg_chip {
 	bool				hvdcp_not_supported;
 	bool				otg_pinctrl;
 	bool				cfg_override_usb_current;
-	u8					original_usbin_allowance;
+	u8				original_usbin_allowance;
 	struct parallel_usb_cfg		parallel;
-	struct delayed_work			parallel_en_work;
-	struct dentry				*debug_root;
+	struct delayed_work		parallel_en_work;
+	struct dentry			*debug_root;
 	struct smbchg_version_tables	tables;
 	struct qpnp_vadc_chip           *vadc_usbin_dev;
 #ifdef CONFIG_LGE_PM_MAXIM_EVP_CONTROL
@@ -225,23 +224,23 @@ struct smbchg_chip {
 	struct qpnp_adc_tm_btm_param		param;
 
 	/* flash current prediction */
-	int					rpara_uohm;
-	int					rslow_uohm;
-	int					vled_max_uv;
+	int				rpara_uohm;
+	int				rslow_uohm;
+	int				vled_max_uv;
 
 	/* vfloat adjustment */
-	int					max_vbat_sample;
-	int					n_vbat_samples;
+	int				max_vbat_sample;
+	int				n_vbat_samples;
 
 	/* status variables */
-	int					max_pulse_allowed;
-	int					wake_reasons;
-	int					previous_soc;
-	int					usb_online;
+	int				max_pulse_allowed;
+	int				wake_reasons;
+	int				previous_soc;
+	int				usb_online;
 	bool				dc_present;
 	bool				usb_present;
 	bool				batt_present;
-	int					otg_retries;
+	int				otg_retries;
 	ktime_t				otg_enable_time;
 	bool				aicl_deglitch_short;
 	bool				safety_timer_en;
@@ -265,35 +264,35 @@ struct smbchg_chip {
 	bool				batt_cold;
 	bool				batt_warm;
 	bool				batt_cool;
-	unsigned int		thermal_levels;
-	unsigned int		therm_lvl_sel;
-	unsigned int		*thermal_mitigation;
+	unsigned int			thermal_levels;
+	unsigned int			therm_lvl_sel;
+	unsigned int			*thermal_mitigation;
 
 	/* irqs */
-	int					batt_hot_irq;
-	int					batt_warm_irq;
-	int					batt_cool_irq;
-	int					batt_cold_irq;
-	int					batt_missing_irq;
-	int					vbat_low_irq;
-	int					chg_hot_irq;
-	int					chg_term_irq;
-	int					taper_irq;
+	int				batt_hot_irq;
+	int				batt_warm_irq;
+	int				batt_cool_irq;
+	int				batt_cold_irq;
+	int				batt_missing_irq;
+	int				vbat_low_irq;
+	int				chg_hot_irq;
+	int				chg_term_irq;
+	int				taper_irq;
 	bool				taper_irq_enabled;
-	struct mutex		taper_irq_lock;
-	int					recharge_irq;
-	int					fastchg_irq;
-	int					wdog_timeout_irq;
-	int					power_ok_irq;
-	int					dcin_uv_irq;
-	int					usbin_uv_irq;
-	int					usbin_ov_irq;
-	int					src_detect_irq;
-	int					otg_fail_irq;
-	int					otg_oc_irq;
-	int					aicl_done_irq;
-	int					usbid_change_irq;
-	int					chg_error_irq;
+	struct mutex			taper_irq_lock;
+	int				recharge_irq;
+	int				fastchg_irq;
+	int				wdog_timeout_irq;
+	int				power_ok_irq;
+	int				dcin_uv_irq;
+	int				usbin_uv_irq;
+	int				usbin_ov_irq;
+	int				src_detect_irq;
+	int				otg_fail_irq;
+	int				otg_oc_irq;
+	int				aicl_done_irq;
+	int				usbid_change_irq;
+	int				chg_error_irq;
 	bool				enable_aicl_wake;
 
 	/* psy */
@@ -438,7 +437,7 @@ enum qpnp_schg {
 };
 
 static char *version_str[] = {
-	[QPNP_SCHG]			= "SCHG",
+	[QPNP_SCHG]		= "SCHG",
 	[QPNP_SCHG_LITE]	= "SCHG_LITE",
 };
 
@@ -451,37 +450,37 @@ enum pmic_subtype {
 };
 
 enum smbchg_wa {
-	SMBCHG_AICL_DEGLITCH_WA 	= BIT(0),
-	SMBCHG_HVDCP_9V_EN_WA		= BIT(1),
-	SMBCHG_USB100_WA 			= BIT(2),
-	SMBCHG_BATT_OV_WA 			= BIT(3),
-	SMBCHG_CC_ESR_WA 			= BIT(4),
+	SMBCHG_AICL_DEGLITCH_WA = BIT(0),
+	SMBCHG_HVDCP_9V_EN_WA	= BIT(1),
+	SMBCHG_USB100_WA = BIT(2),
+	SMBCHG_BATT_OV_WA = BIT(3),
+	SMBCHG_CC_ESR_WA = BIT(4),
 	SMBCHG_FLASH_ICL_DISABLE_WA = BIT(5),
-	SMBCHG_RESTART_WA 			= BIT(6),
+	SMBCHG_RESTART_WA = BIT(6),
 	SMBCHG_FLASH_BUCK_SWITCH_FREQ_WA = BIT(7),
-	SMBCHG_ICL_CONTROL_WA 		= BIT(8),
+	SMBCHG_ICL_CONTROL_WA = BIT(8),
 };
 
 enum print_reason {
-	PR_REGISTER		= BIT(0),
+	PR_REGISTER	= BIT(0),
 	PR_INTERRUPT	= BIT(1),
-	PR_STATUS		= BIT(2),
-	PR_DUMP			= BIT(3),
-	PR_PM			= BIT(4),
-	PR_MISC			= BIT(5),
-	PR_WIPOWER		= BIT(6),
-	PR_TYPEC		= BIT(7),
+	PR_STATUS	= BIT(2),
+	PR_DUMP		= BIT(3),
+	PR_PM		= BIT(4),
+	PR_MISC		= BIT(5),
+	PR_WIPOWER	= BIT(6),
+	PR_TYPEC	= BIT(7),
 #ifdef CONFIG_LGE_PM
-	PR_LGE			= BIT(8),
+	PR_LGE		= BIT(8),
 #endif
 };
 
 enum wake_reason {
-	PM_PARALLEL_CHECK 		= BIT(0),
+	PM_PARALLEL_CHECK = BIT(0),
 	PM_REASON_VFLOAT_ADJUST = BIT(1),
-	PM_ESR_PULSE 			= BIT(2),
-	PM_PARALLEL_TAPER 		= BIT(3),
-	PM_DETECT_HVDCP 		= BIT(4),
+	PM_ESR_PULSE = BIT(2),
+	PM_PARALLEL_TAPER = BIT(3),
+	PM_DETECT_HVDCP = BIT(4),
 #ifdef CONFIG_LGE_PM_VFLOAT_TRIM_RESTORE
 	PM_VFLOAT_TRIM_RESTORE		= BIT(5),
 	PM_VFLOAT_TRIM_RECHARGE		= BIT(6),
