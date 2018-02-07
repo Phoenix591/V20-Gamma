@@ -101,4 +101,10 @@ void clear_wakeup_reasons(void);
 void log_suspend_abort_reason(const char *fmt, ...);
 int check_wakeup_reason(int irq);
 
+#ifdef CONFIG_SUSPEND
+void log_suspend_abort_reason(const char *fmt, ...);
+#else
+static inline void log_suspend_abort_reason(const char *fmt, ...) { }
+#endif
+
 #endif /* _LINUX_WAKEUP_REASON_H */
