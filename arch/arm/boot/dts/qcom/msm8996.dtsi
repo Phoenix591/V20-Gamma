@@ -1481,8 +1481,6 @@
 		qcom,l1-supported;
 		qcom,l1ss-supported;
 		qcom,aux-clk-sync;
-		qcom,common-clk-en;
-		qcom,clk-power-manage-en;
 
 		qcom,ep-latency = <10>;
 
@@ -1491,7 +1489,7 @@
 
 		iommus = <&anoc0_smmu>;
 
-		qcom,ep-wakeirq;
+		qcom,boot-option = <0x1>;
 
 		linux,pci-domain = <0>;
 
@@ -1642,7 +1640,7 @@
 
 		iommus = <&anoc0_smmu>;
 
-		qcom,ep-wakeirq;
+		qcom,boot-option = <0x1>;
 
 		qcom,ep-latency = <10>;
 
@@ -1793,7 +1791,7 @@
 
 		iommus = <&anoc0_smmu>;
 
-		qcom,ep-wakeirq;
+		qcom,boot-option = <0x1>;
 
 		qcom,ep-latency = <10>;
 		qcom,wr-halt-size = <0xa>;
@@ -2242,6 +2240,13 @@
 		reg = <0x066bf0c8 0xc8>;
 		qcom,pm-qos-latency = <41 91 801>;
 		qcom,usb-core-id = <0>;
+	};
+
+	android_usb1: android_usb1 {
+		compatible = "qcom,android-usb";
+		qcom,pm-qos-latency = <41 91 801>;
+		qcom,usb-core-id = <1>;
+		status = "disabled";
 	};
 
 	qusb_phy0: qusb@7411000 {
