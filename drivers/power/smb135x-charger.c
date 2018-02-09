@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2017 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2016 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -112,7 +112,6 @@
 #define BATT_MISSING_THERM_BIT		BIT(1)
 
 #define CFG_1A_REG			0x1A
-#define TEMP_MONITOR_EN_BIT		BIT(6)
 #define HOT_SOFT_VFLOAT_COMP_EN_BIT	BIT(3)
 #define COLD_SOFT_VFLOAT_COMP_EN_BIT	BIT(2)
 #define HOT_SOFT_CURRENT_COMP_EN_BIT	BIT(1)
@@ -332,11 +331,6 @@ struct smb135x_regulator {
 	struct regulator_dev	*rdev;
 };
 
-struct smb135x_wakeup_source {
-	struct wakeup_source    source;
-	unsigned long           enabled;
-};
-
 struct smb135x_chg {
 	struct i2c_client		*client;
 	struct device			*dev;
@@ -375,7 +369,6 @@ struct smb135x_chg {
 	struct mutex			otg_oc_count_lock;
 	struct delayed_work		hvdcp_det_work;
 
-	struct mutex			parallel_config_lock;
 	bool				parallel_charger;
 	bool				parallel_charger_present;
 	bool				bms_controlled_charging;
@@ -403,9 +396,6 @@ struct smb135x_chg {
 
 	bool				resume_completed;
 	bool				irq_waiting;
-	bool				device_suspended;
-	bool				usbin_uv;
-	u32				src_detect_low_tries;
 	u32				usb_suspended;
 	u32				dc_suspended;
 	struct mutex			path_suspend_lock;
@@ -421,7 +411,6 @@ struct smb135x_chg {
 	struct regulator		*therm_bias_vreg;
 	struct regulator		*usb_pullup_vreg;
 	struct delayed_work		wireless_insertion_work;
-	struct delayed_work		src_detect_low_work;
 
 	unsigned int			thermal_levels;
 	unsigned int			therm_lvl_sel;
@@ -435,36 +424,12 @@ struct smb135x_chg {
 
 	bool				apsd_rerun;
 	bool				id_line_not_connected;
-	struct smb135x_wakeup_source    wake_source;
 };
 
 #define RETRY_COUNT 5
 int retry_sleep_ms[RETRY_COUNT] = {
 	10, 20, 30, 40, 50
 };
-
-static irqreturn_t smb135x_chg_stat_handler(int irq, void *dev_id);
-
-static void smb135x_stay_awake(struct smb135x_chg *chip)
-{
-	if (chip->device_suspended)
-		return;
-
-	if (!__test_and_set_bit(0, &chip->wake_source.enabled)) {
-		__pm_stay_awake(&chip->wake_source.source);
-		dev_dbg(chip->dev, "enabled source %s\n",
-				chip->wake_source.source.name);
-	}
-}
-
-static void smb135x_relax(struct smb135x_chg *chip)
-{
-	if (__test_and_clear_bit(0, &chip->wake_source.enabled)) {
-		__pm_relax(&chip->wake_source.source);
-		dev_dbg(chip->dev, "disable source %s\n",
-				chip->wake_source.source.name);
-	}
-}
 
 static int __smb135x_read(struct smb135x_chg *chip, int reg,
 				u8 *val)
@@ -523,9 +488,9 @@ static int smb135x_read(struct smb135x_chg *chip, int reg,
 		return 0;
 	}
 	mutex_lock(&chip->read_write_lock);
-	smb135x_stay_awake(chip);
+	pm_stay_awake(chip->dev);
 	rc = __smb135x_read(chip, reg, val);
-	smb135x_relax(chip);
+	pm_relax(chip->dev);
 	mutex_unlock(&chip->read_write_lock);
 
 	return rc;
@@ -540,9 +505,9 @@ static int smb135x_write(struct smb135x_chg *chip, int reg,
 		return 0;
 
 	mutex_lock(&chip->read_write_lock);
-	smb135x_stay_awake(chip);
+	pm_stay_awake(chip->dev);
 	rc = __smb135x_write(chip, reg, val);
-	smb135x_relax(chip);
+	pm_relax(chip->dev);
 	mutex_unlock(&chip->read_write_lock);
 
 	return rc;
@@ -1821,15 +1786,6 @@ static int smb135x_parallel_set_chg_present(struct smb135x_chg *chip,
 			return rc;
 		}
 
-		/* disable thermal monitoring for parallel-charger */
-		rc = smb135x_masked_write(chip, CFG_1A_REG,
-					TEMP_MONITOR_EN_BIT, 0);
-		if (rc < 0) {
-			dev_err(chip->dev,
-				"Couldn't disable temp-monitor rc=%d\n", rc);
-			return rc;
-		}
-
 		/* set the float voltage */
 		if (chip->vfloat_mv != -EINVAL) {
 			rc = smb135x_float_voltage_set(chip, chip->vfloat_mv);
@@ -1960,9 +1916,7 @@ static int smb135x_parallel_set_property(struct power_supply *psy,
 			chip->chg_enabled = val->intval;
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
-		mutex_lock(&chip->parallel_config_lock);
 		rc = smb135x_parallel_set_chg_present(chip, val->intval);
-		mutex_unlock(&chip->parallel_config_lock);
 		break;
 	case POWER_SUPPLY_PROP_CONSTANT_CHARGE_CURRENT_MAX:
 		if (chip->parallel_charger_present) {
@@ -2728,7 +2682,7 @@ static int handle_usb_removal(struct smb135x_chg *chip)
 {
 	if (chip->usb_psy) {
 		cancel_delayed_work_sync(&chip->hvdcp_det_work);
-		smb135x_relax(chip);
+		pm_relax(chip->dev);
 		pr_debug("setting usb psy type = %d\n",
 				POWER_SUPPLY_TYPE_UNKNOWN);
 		power_supply_set_supply_type(chip->usb_psy,
@@ -2789,7 +2743,7 @@ static void smb135x_hvdcp_det_work(struct work_struct *work)
 			POWER_SUPPLY_TYPE_USB_HVDCP);
 	}
 end:
-	smb135x_relax(chip);
+	pm_relax(chip->dev);
 }
 
 #define HVDCP_NOTIFY_MS 2500
@@ -2840,7 +2794,7 @@ static int handle_usb_insertion(struct smb135x_chg *chip)
 
 	if (usb_supply_type == POWER_SUPPLY_TYPE_USB_DCP) {
 		pr_debug("schedule hvdcp detection worker\n");
-		smb135x_stay_awake(chip);
+		pm_stay_awake(chip->dev);
 		schedule_delayed_work(&chip->hvdcp_det_work,
 					msecs_to_jiffies(HVDCP_NOTIFY_MS));
 	}
@@ -2862,39 +2816,6 @@ static int handle_usb_insertion(struct smb135x_chg *chip)
 	return 0;
 }
 
-#define SRC_DETECT_LOW_DELAY_MS		msecs_to_jiffies(200)
-#define SRC_DETECT_LOW_TRIES		20
-static void src_detect_check_work(struct work_struct *work)
-{
-	struct smb135x_chg *chip = container_of(work,
-			struct smb135x_chg, src_detect_low_work.work);
-
-	pr_debug("usb_present=%d usbin_uv=%d src_det_tries=%d\n",
-			chip->usb_present, chip->usbin_uv,
-			chip->src_detect_low_tries);
-
-	if (!chip->usb_present || !chip->usbin_uv) {
-		/*
-		 * either src_detect was detected or USB voltage
-		 * recovered after a UV.
-		 */
-		smb135x_relax(chip);
-		return;
-	}
-
-	smb135x_chg_stat_handler(chip->client->irq, chip);
-
-	/* reschedule the work if usb is still present */
-	if (chip->usb_present &&
-			chip->src_detect_low_tries < SRC_DETECT_LOW_TRIES) {
-		chip->src_detect_low_tries++;
-		schedule_delayed_work(&chip->src_detect_low_work,
-					SRC_DETECT_LOW_DELAY_MS);
-	} else {
-		smb135x_relax(chip);
-	}
-}
-
 /**
  * usbin_uv_handler()
  * @chip: pointer to smb135x_chg chip
@@ -2906,22 +2827,26 @@ static int usbin_uv_handler(struct smb135x_chg *chip, u8 rt_stat)
 	 * rt_stat indicates if usb is undervolted
 	 */
 	bool usb_present = !rt_stat;
+	union power_supply_propval prop = {0, };
 
 	if (usb_present) {
-		chip->usbin_uv = false;
 		pr_debug("Set usb psy dp=f dm=f\n");
 		power_supply_set_dp_dm(chip->usb_psy,
 				POWER_SUPPLY_DP_DM_DPF_DMF);
-	} else {
-		chip->usbin_uv = true;
-		chip->src_detect_low_tries = 0;
-		smb135x_stay_awake(chip);
-		schedule_delayed_work(&chip->src_detect_low_work,
-					SRC_DETECT_LOW_DELAY_MS);
 	}
 
 	pr_debug("chip->usb_present = %d usb_present = %d\n",
 			chip->usb_present, usb_present);
+	if (chip->usb_psy && !chip->usb_psy->get_property(chip->usb_psy,
+				POWER_SUPPLY_PROP_TYPE, &prop)) {
+		if (prop.intval == POWER_SUPPLY_TYPE_USB_DCP) {
+			if (chip->usb_present && !usb_present) {
+				/* For DCP and HVDCP removing */
+				chip->usb_present = usb_present;
+				handle_usb_removal(chip);
+			}
+		}
+	}
 
 	return 0;
 }
@@ -4278,13 +4203,11 @@ static int smb135x_main_charger_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&chip->reset_otg_oc_count_work,
 					reset_otg_oc_count_work);
 	INIT_DELAYED_WORK(&chip->hvdcp_det_work, smb135x_hvdcp_det_work);
-	INIT_DELAYED_WORK(&chip->src_detect_low_work, src_detect_check_work);
 	mutex_init(&chip->path_suspend_lock);
 	mutex_init(&chip->current_change_lock);
 	mutex_init(&chip->read_write_lock);
 	mutex_init(&chip->otg_oc_count_lock);
 	device_init_wakeup(chip->dev, true);
-	wakeup_source_init(&chip->wake_source.source, "smb_wake_source");
 	/* probe the device to check if its actually connected */
 	rc = smb135x_read(chip, CFG_4_REG, &reg);
 	if (rc) {
@@ -4440,8 +4363,6 @@ static int smb135x_parallel_charger_probe(struct i2c_client *client,
 	mutex_init(&chip->path_suspend_lock);
 	mutex_init(&chip->current_change_lock);
 	mutex_init(&chip->read_write_lock);
-	mutex_init(&chip->parallel_config_lock);
-	wakeup_source_init(&chip->wake_source.source, "smb_wake_source");
 
 	match = of_match_node(smb135x_match_table, node);
 	if (match == NULL) {
@@ -4454,7 +4375,7 @@ static int smb135x_parallel_charger_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, chip);
 
-	chip->parallel_psy.name		= "parallel";
+	chip->parallel_psy.name		= "usb-parallel";
 	chip->parallel_psy.type		= POWER_SUPPLY_TYPE_PARALLEL;
 	chip->parallel_psy.get_property	= smb135x_parallel_get_property;
 	chip->parallel_psy.set_property	= smb135x_parallel_set_property;
@@ -4499,7 +4420,6 @@ static int smb135x_charger_remove(struct i2c_client *client)
 
 	if (chip->parallel_charger) {
 		power_supply_unregister(&chip->parallel_psy);
-		mutex_destroy(&chip->parallel_config_lock);
 		goto mutex_destroy;
 	}
 
@@ -4537,7 +4457,6 @@ static int smb135x_suspend(struct device *dev)
 	if (chip->parallel_charger)
 		return 0;
 
-	chip->device_suspended = true;
 	/* Save the current IRQ config */
 	for (i = 0; i < 3; i++) {
 		rc = smb135x_read(chip, IRQ_CFG_REG + i,
@@ -4612,8 +4531,6 @@ static int smb135x_resume(struct device *dev)
 	} else {
 		mutex_unlock(&chip->irq_complete);
 	}
-
-	chip->device_suspended = false;
 	return 0;
 }
 

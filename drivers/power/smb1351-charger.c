@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2017 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2016 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2602,6 +2602,10 @@ static int smb1351_parallel_set_property(struct power_supply *psy,
 				pr_err("%suspend charger failed\n",
 						val->intval ? "Un-s" : "S");
 		}
+#ifdef CONFIG_LGE_PM_PARALLEL_CHARGING
+		else
+			chip->usb_suspended_status &= ~USER;
+#endif
 		break;
 	case POWER_SUPPLY_PROP_PRESENT:
 		mutex_lock(&chip->parallel_config_lock);
@@ -2955,7 +2959,7 @@ end:
 	smb1351_relax(&chip->smb1351_ws, HVDCP_DETECT);
 }
 
-#define HVDCP_NOTIFY_MS 3500
+#define HVDCP_NOTIFY_MS 2500
 static int smb1351_apsd_complete_handler(struct smb1351_charger *chip,
 						u8 status)
 {
@@ -2987,23 +2991,21 @@ static int smb1351_apsd_complete_handler(struct smb1351_charger *chip,
 		 * If defined force hvdcp 2p0 property,
 		 * we force to hvdcp 2p0 in the APSD handler.
 		 */
-		if (type == POWER_SUPPLY_TYPE_USB_DCP) {
-			if (chip->force_hvdcp_2p0) {
-				pr_debug("Force set to HVDCP 2.0 mode\n");
-				smb1351_masked_write(chip, VARIOUS_FUNC_3_REG,
+		if (chip->force_hvdcp_2p0) {
+			pr_debug("Force set to HVDCP 2.0 mode\n");
+			smb1351_masked_write(chip, VARIOUS_FUNC_3_REG,
 						QC_2P1_AUTH_ALGO_BIT, 0);
-				smb1351_masked_write(chip, CMD_HVDCP_REG,
+			smb1351_masked_write(chip, CMD_HVDCP_REG,
 						CMD_FORCE_HVDCP_2P0_BIT,
 						CMD_FORCE_HVDCP_2P0_BIT);
-				type = POWER_SUPPLY_TYPE_USB_HVDCP;
-			} else {
-				pr_debug("schedule hvdcp detection worker\n");
-				smb1351_stay_awake(&chip->smb1351_ws,
-							HVDCP_DETECT);
-				schedule_delayed_work(&chip->hvdcp_det_work,
+			type = POWER_SUPPLY_TYPE_USB_HVDCP;
+		} else if (type == POWER_SUPPLY_TYPE_USB_DCP) {
+			pr_debug("schedule hvdcp detection worker\n");
+			smb1351_stay_awake(&chip->smb1351_ws, HVDCP_DETECT);
+			schedule_delayed_work(&chip->hvdcp_det_work,
 					msecs_to_jiffies(HVDCP_NOTIFY_MS));
-			}
 		}
+
 		power_supply_set_supply_type(chip->usb_psy, type);
 		/*
 		 * SMB is now done sampling the D+/D- lines,
@@ -4631,7 +4633,7 @@ static int smb1351_main_charger_probe(struct i2c_client *client,
 			chip->adc_param.low_temp = chip->batt_cool_decidegc;
 			chip->adc_param.high_temp = chip->batt_warm_decidegc;
 		}
-		chip->adc_param.timer_interval = ADC_MEAS1_INTERVAL_500MS;
+		chip->adc_param.timer_interval = ADC_MEAS2_INTERVAL_1S;
 		chip->adc_param.state_request = ADC_TM_WARM_COOL_THR_ENABLE;
 		chip->adc_param.btm_ctx = chip;
 		chip->adc_param.threshold_notification =
@@ -4709,7 +4711,7 @@ static int smb1351_parallel_slave_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, chip);
 	mutex_init(&chip->parallel_config_lock);
 
-	chip->parallel_psy.name		= "parallel";
+	chip->parallel_psy.name		= "usb-parallel";
 	chip->parallel_psy.type		= POWER_SUPPLY_TYPE_PARALLEL;
 	chip->parallel_psy.get_property	= smb1351_parallel_get_property;
 	chip->parallel_psy.set_property	= smb1351_parallel_set_property;

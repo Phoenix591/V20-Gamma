@@ -7035,7 +7035,7 @@ static void check_empty_work(struct work_struct *work)
 
         msoc = get_monotonic_soc_raw(chip);
 		if (fg_debug_mask & FG_STATUS)
-			pr_info("Vbatt_low: %d, msoc: %d\n", vbatt_low_sts, 
+			pr_info("Vbatt_low: %d, msoc: %d\n", vbatt_low_sts,
 					msoc);
 		if (vbatt_low_sts || (msoc == 0))
 		        chip->soc_empty = true;

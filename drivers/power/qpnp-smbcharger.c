@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2017 The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -81,12 +81,17 @@
 #include <soc/qcom/lge/lge_monitor_thermal.h>
 #endif
 
+#ifdef CONFIG_FORCE_FAST_CHARGE
+#include <linux/fastchg.h>
+#endif
+
 /* Mask/Bit helpers */
 #define _SMB_MASK(BITS, POS) \
 	((unsigned char)(((1 << (BITS)) - 1) << (POS)))
 #define SMB_MASK(LEFT_BIT_POS, RIGHT_BIT_POS) \
 		_SMB_MASK((LEFT_BIT_POS) - (RIGHT_BIT_POS) + 1, \
 				(RIGHT_BIT_POS))
+
 /* Config registers */
 struct smbchg_regulator {
 	struct regulator_desc	rdesc;
@@ -99,15 +104,11 @@ struct parallel_usb_cfg {
 	int				min_9v_current_thr_ma;
 	int				allowed_lowering_ma;
 	int				current_max_ma;
-	bool				avail;
-	struct mutex			lock;
+	bool			avail;
+	struct mutex	lock;
 	int				initial_aicl_ma;
-	ktime_t				last_disabled;
-	bool				enabled_once;
-	int				parallel_aicl_ma;
-	int				min_main_icl_ma;
-	bool				use_parallel_aicl;
-	bool				parallel_en_in_progress;
+	ktime_t			last_disabled;
+	bool			enabled_once;
 };
 
 struct ilim_entry {
@@ -124,15 +125,15 @@ struct ilim_map {
 };
 
 struct smbchg_version_tables {
-	const int			*dc_ilim_ma_table;
+	const int		*dc_ilim_ma_table;
 	int				dc_ilim_ma_len;
-	const int			*usb_ilim_ma_table;
+	const int		*usb_ilim_ma_table;
 	int				usb_ilim_ma_len;
-	const int			*iterm_ma_table;
+	const int		*iterm_ma_table;
 	int				iterm_ma_len;
-	const int			*fcc_comp_table;
+	const int		*fcc_comp_table;
 	int				fcc_comp_len;
-	const int			*aicl_rerun_period_table;
+	const int		*aicl_rerun_period_table;
 	int				aicl_rerun_period_len;
 	int				rchg_thr_mv;
 };
@@ -140,39 +141,39 @@ struct smbchg_version_tables {
 struct smbchg_chip {
 	struct device			*dev;
 	struct spmi_device		*spmi;
-	int				schg_version;
+	int						schg_version;
 
 	/* peripheral register address bases */
-	u16				chgr_base;
-	u16				bat_if_base;
-	u16				usb_chgpth_base;
-	u16				dc_chgpth_base;
-	u16				otg_base;
-	u16				misc_base;
+	u16					chgr_base;
+	u16					bat_if_base;
+	u16					usb_chgpth_base;
+	u16					dc_chgpth_base;
+	u16					otg_base;
+	u16					misc_base;
 
-	int				fake_battery_soc;
-	u8				revision[4];
+	int					fake_battery_soc;
+	u8					revision[4];
 
 	/* configuration parameters */
-	int				iterm_ma;
-	int				usb_max_current_ma;
-	int				typec_current_ma;
-	int				dc_max_current_ma;
-	int				dc_target_current_ma;
-	int				cfg_fastchg_current_ma;
-	int				fastchg_current_ma;
-	int				vfloat_mv;
-	int				fastchg_current_comp;
-	int				float_voltage_comp;
-	int				resume_delta_mv;
-	int				safety_time;
-	int				prechg_safety_time;
-	int				bmd_pin_src;
-	int				jeita_temp_hard_limit;
+	int					iterm_ma;
+	int					usb_max_current_ma;
+	int					typec_current_ma;
+	int					dc_max_current_ma;
+	int					dc_target_current_ma;
+	int					cfg_fastchg_current_ma;
+	int					fastchg_current_ma;
+	int					vfloat_mv;
+	int					fastchg_current_comp;
+	int					float_voltage_comp;
+	int					resume_delta_mv;
+	int					safety_time;
+	int					prechg_safety_time;
+	int					bmd_pin_src;
+	int					jeita_temp_hard_limit;
 #ifdef CONFIG_LGE_PM_PSEUDO_BATTERY
-	u8				vbat_low_thr;
+	u8              	vbat_low_thr;
 #endif
-	int				aicl_rerun_period_s;
+	int					aicl_rerun_period_s;
 	bool				use_vfloat_adjustments;
 	bool				iterm_disabled;
 	bool				bmd_algo_disabled;
@@ -193,10 +194,10 @@ struct smbchg_chip {
 	bool				hvdcp_not_supported;
 	bool				otg_pinctrl;
 	bool				cfg_override_usb_current;
-	u8				original_usbin_allowance;
+	u8					original_usbin_allowance;
 	struct parallel_usb_cfg		parallel;
-	struct delayed_work		parallel_en_work;
-	struct dentry			*debug_root;
+	struct delayed_work			parallel_en_work;
+	struct dentry				*debug_root;
 	struct smbchg_version_tables	tables;
 	struct qpnp_vadc_chip           *vadc_usbin_dev;
 #ifdef CONFIG_LGE_PM_MAXIM_EVP_CONTROL
@@ -212,34 +213,34 @@ struct smbchg_chip {
 #endif
 
 	/* wipower params */
-	struct ilim_map			wipower_default;
-	struct ilim_map			wipower_pt;
-	struct ilim_map			wipower_div2;
-	struct qpnp_vadc_chip		*vadc_dev;
 	bool				wipower_dyn_icl_avail;
-	struct ilim_entry		current_ilim;
-	struct mutex			wipower_config;
 	bool				wipower_configured;
-	struct qpnp_adc_tm_btm_param	param;
+	struct ilim_map						wipower_default;
+	struct ilim_map						wipower_pt;
+	struct ilim_map						wipower_div2;
+	struct qpnp_vadc_chip				*vadc_dev;
+	struct ilim_entry					current_ilim;
+	struct mutex						wipower_config;
+	struct qpnp_adc_tm_btm_param		param;
 
 	/* flash current prediction */
-	int				rpara_uohm;
-	int				rslow_uohm;
-	int				vled_max_uv;
+	int					rpara_uohm;
+	int					rslow_uohm;
+	int					vled_max_uv;
 
 	/* vfloat adjustment */
-	int				max_vbat_sample;
-	int				n_vbat_samples;
+	int					max_vbat_sample;
+	int					n_vbat_samples;
 
 	/* status variables */
-	int				max_pulse_allowed;
-	int				wake_reasons;
-	int				previous_soc;
-	int				usb_online;
+	int					max_pulse_allowed;
+	int					wake_reasons;
+	int					previous_soc;
+	int					usb_online;
 	bool				dc_present;
 	bool				usb_present;
 	bool				batt_present;
-	int				otg_retries;
+	int					otg_retries;
 	ktime_t				otg_enable_time;
 	bool				aicl_deglitch_short;
 	bool				safety_timer_en;
@@ -263,43 +264,43 @@ struct smbchg_chip {
 	bool				batt_cold;
 	bool				batt_warm;
 	bool				batt_cool;
-	unsigned int			thermal_levels;
-	unsigned int			therm_lvl_sel;
-	unsigned int			*thermal_mitigation;
+	unsigned int		thermal_levels;
+	unsigned int		therm_lvl_sel;
+	unsigned int		*thermal_mitigation;
 
 	/* irqs */
-	int				batt_hot_irq;
-	int				batt_warm_irq;
-	int				batt_cool_irq;
-	int				batt_cold_irq;
-	int				batt_missing_irq;
-	int				vbat_low_irq;
-	int				chg_hot_irq;
-	int				chg_term_irq;
-	int				taper_irq;
+	int					batt_hot_irq;
+	int					batt_warm_irq;
+	int					batt_cool_irq;
+	int					batt_cold_irq;
+	int					batt_missing_irq;
+	int					vbat_low_irq;
+	int					chg_hot_irq;
+	int					chg_term_irq;
+	int					taper_irq;
 	bool				taper_irq_enabled;
-	struct mutex			taper_irq_lock;
-	int				recharge_irq;
-	int				fastchg_irq;
-	int				wdog_timeout_irq;
-	int				power_ok_irq;
-	int				dcin_uv_irq;
-	int				usbin_uv_irq;
-	int				usbin_ov_irq;
-	int				src_detect_irq;
-	int				otg_fail_irq;
-	int				otg_oc_irq;
-	int				aicl_done_irq;
-	int				usbid_change_irq;
-	int				chg_error_irq;
+	struct mutex		taper_irq_lock;
+	int					recharge_irq;
+	int					fastchg_irq;
+	int					wdog_timeout_irq;
+	int					power_ok_irq;
+	int					dcin_uv_irq;
+	int					usbin_uv_irq;
+	int					usbin_ov_irq;
+	int					src_detect_irq;
+	int					otg_fail_irq;
+	int					otg_oc_irq;
+	int					aicl_done_irq;
+	int					usbid_change_irq;
+	int					chg_error_irq;
 	bool				enable_aicl_wake;
 
 	/* psy */
-	struct power_supply		*usb_psy;
-	struct power_supply		batt_psy;
-	struct power_supply		dc_psy;
-	struct power_supply		*bms_psy;
-	struct power_supply		*typec_psy;
+	struct power_supply					*usb_psy;
+	struct power_supply					batt_psy;
+	struct power_supply					dc_psy;
+	struct power_supply					*bms_psy;
+	struct power_supply					*typec_psy;
 #ifdef CONFIG_BATTERY_MAX17050
 	struct power_supply					*ext_fg_psy;
 #endif
@@ -328,11 +329,11 @@ struct smbchg_chip {
 	const char			*battery_psy_name;
 	bool				psy_registered;
 
-	struct smbchg_regulator		otg_vreg;
-	struct smbchg_regulator		ext_otg_vreg;
-	struct work_struct		usb_set_online_work;
-	struct delayed_work		vfloat_adjust_work;
-	struct delayed_work		hvdcp_det_work;
+	struct smbchg_regulator				otg_vreg;
+	struct smbchg_regulator				ext_otg_vreg;
+	struct work_struct					usb_set_online_work;
+	struct delayed_work					vfloat_adjust_work;
+	struct delayed_work					hvdcp_det_work;
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_CABLE_DETECT
 	struct lge_power 					*lge_cd_lpc;
 	bool 				is_factory_cable;
@@ -359,35 +360,34 @@ struct smbchg_chip {
 	char 			*battery_name;
 #endif
 	spinlock_t			sec_access_lock;
-	struct mutex			therm_lvl_lock;
-	struct mutex			usb_set_online_lock;
-	struct mutex			pm_lock;
+	struct mutex		therm_lvl_lock;
+	struct mutex		usb_set_online_lock;
+	struct mutex		pm_lock;
 	/* aicl deglitch workaround */
-	unsigned long			first_aicl_seconds;
-	int				aicl_irq_count;
-	struct mutex			usb_status_lock;
+	unsigned long		first_aicl_seconds;
+	int					aicl_irq_count;
+	struct mutex		usb_status_lock;
 	bool				hvdcp_3_det_ignore_uv;
-	struct completion		src_det_lowered;
-	struct completion		src_det_raised;
-	struct completion		usbin_uv_lowered;
-	struct completion		usbin_uv_raised;
-	struct completion		hvdcp_det_done;
-	int				pulse_cnt;
-	struct led_classdev		led_cdev;
+	int					pulse_cnt;
 	bool				skip_usb_notification;
-	u32				vchg_adc_channel;
-	struct qpnp_vadc_chip		*vchg_vadc_dev;
+	u32					vchg_adc_channel;
+	struct completion					src_det_lowered;
+	struct completion					src_det_raised;
+	struct completion					usbin_uv_lowered;
+	struct completion					usbin_uv_raised;
+	struct led_classdev					led_cdev;
+	struct qpnp_vadc_chip				*vchg_vadc_dev;
 
 	/* voters */
-	struct votable			*fcc_votable;
-	struct votable			*usb_icl_votable;
-	struct votable			*dc_icl_votable;
-	struct votable			*usb_suspend_votable;
-	struct votable			*dc_suspend_votable;
-	struct votable			*battchg_suspend_votable;
-	struct votable			*hw_aicl_rerun_disable_votable;
-	struct votable			*hw_aicl_rerun_enable_indirect_votable;
-	struct votable			*aicl_deglitch_short_votable;
+	struct votable		*fcc_votable;
+	struct votable		*usb_icl_votable;
+	struct votable		*dc_icl_votable;
+	struct votable		*usb_suspend_votable;
+	struct votable		*dc_suspend_votable;
+	struct votable		*battchg_suspend_votable;
+	struct votable		*hw_aicl_rerun_disable_votable;
+	struct votable		*hw_aicl_rerun_enable_indirect_votable;
+	struct votable		*aicl_deglitch_short_votable;
 #ifdef CONFIG_LGE_PM_WAKE_LOCK_FOR_CHG_LOGO
 	struct wake_lock 	chg_logo_wake_lock;
 #endif
@@ -430,7 +430,7 @@ enum qpnp_schg {
 };
 
 static char *version_str[] = {
-	[QPNP_SCHG]		= "SCHG",
+	[QPNP_SCHG]			= "SCHG",
 	[QPNP_SCHG_LITE]	= "SCHG_LITE",
 };
 
@@ -443,40 +443,40 @@ enum pmic_subtype {
 };
 
 enum smbchg_wa {
-	SMBCHG_AICL_DEGLITCH_WA = BIT(0),
-	SMBCHG_HVDCP_9V_EN_WA	= BIT(1),
-	SMBCHG_USB100_WA = BIT(2),
-	SMBCHG_BATT_OV_WA = BIT(3),
-	SMBCHG_CC_ESR_WA = BIT(4),
+	SMBCHG_AICL_DEGLITCH_WA 	= BIT(0),
+	SMBCHG_HVDCP_9V_EN_WA		= BIT(1),
+	SMBCHG_USB100_WA 			= BIT(2),
+	SMBCHG_BATT_OV_WA 			= BIT(3),
+	SMBCHG_CC_ESR_WA 			= BIT(4),
 	SMBCHG_FLASH_ICL_DISABLE_WA = BIT(5),
-	SMBCHG_RESTART_WA = BIT(6),
+	SMBCHG_RESTART_WA 			= BIT(6),
 	SMBCHG_FLASH_BUCK_SWITCH_FREQ_WA = BIT(7),
-	SMBCHG_ICL_CONTROL_WA = BIT(8),
+	SMBCHG_ICL_CONTROL_WA 		= BIT(8),
 };
 
 enum print_reason {
-	PR_REGISTER	= BIT(0),
+	PR_REGISTER		= BIT(0),
 	PR_INTERRUPT	= BIT(1),
-	PR_STATUS	= BIT(2),
-	PR_DUMP		= BIT(3),
-	PR_PM		= BIT(4),
-	PR_MISC		= BIT(5),
-	PR_WIPOWER	= BIT(6),
-	PR_TYPEC	= BIT(7),
+	PR_STATUS		= BIT(2),
+	PR_DUMP			= BIT(3),
+	PR_PM			= BIT(4),
+	PR_MISC			= BIT(5),
+	PR_WIPOWER		= BIT(6),
+	PR_TYPEC		= BIT(7),
 #ifdef CONFIG_LGE_PM
-	PR_LGE		= BIT(8),
+	PR_LGE			= BIT(8),
 #endif
 };
 
 enum wake_reason {
-	PM_PARALLEL_CHECK = BIT(0),
+	PM_PARALLEL_CHECK 		= BIT(0),
 	PM_REASON_VFLOAT_ADJUST = BIT(1),
-	PM_ESR_PULSE = BIT(2),
-	PM_PARALLEL_TAPER = BIT(3),
-	PM_DETECT_HVDCP = BIT(4),
+	PM_ESR_PULSE 			= BIT(2),
+	PM_PARALLEL_TAPER 		= BIT(3),
+	PM_DETECT_HVDCP 		= BIT(4),
 #ifdef CONFIG_LGE_PM_VFLOAT_TRIM_RESTORE
-	PM_VFLOAT_TRIM_RESTORE = BIT(5),
-	PM_VFLOAT_TRIM_RECHARGE = BIT(6),
+	PM_VFLOAT_TRIM_RESTORE		= BIT(5),
+	PM_VFLOAT_TRIM_RECHARGE		= BIT(6),
 #endif
 };
 
