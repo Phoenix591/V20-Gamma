@@ -164,7 +164,7 @@ int limit_voter_register(struct limit_voter* entry, const char* name,
 
 	struct limit_list* list_to = limit_list_get_by_type(type);
 
-	strlcpy(entry->name, name, LIMIT_NAME_LENGTH);
+	strncpy(entry->name, name, LIMIT_NAME_LENGTH);
 	entry->type = type;
 	entry->limit = LIMIT_TOTALLY_RELEASED;
 
@@ -213,20 +213,8 @@ void limit_voter_deactivate() {
 }
 
 void limit_voter_set(struct limit_voter* voter, int limit) {
-	struct limit_list* list_of;
-
-	if (!voter) {
-		pr_voter("voter is NULL\n");
-		return;
-	}
-
-	if (voter->limit == limit) {
-		pr_voter("voting values are same, %d\n", limit);
-		return;
-	}
-
-	list_of = limit_list_get_by_entry(voter);
-	if (list_of) {
+	if (voter->limit != limit) {
+		struct limit_list* list_of = limit_list_get_by_entry(voter);
 		voter->limit = limit;
 
 		mutex_lock(&list_of->lock);
@@ -234,7 +222,7 @@ void limit_voter_set(struct limit_voter* voter, int limit) {
 		mutex_unlock(&list_of->lock);
 	}
 	else
-		pr_voter("Couldn't find the list of %s\n", voter->name);
+		pr_voter("voting values are same, %d\n", limit);
 }
 
 void limit_voter_release(struct limit_voter* voter) {
