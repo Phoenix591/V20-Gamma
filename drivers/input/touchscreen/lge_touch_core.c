@@ -896,12 +896,12 @@ static int report_event(struct lge_touch_data *ts)
 			++ts->pdata->touch_count_num;
 
 			if (ts->pdata->lockscreen_stat && knock_mode) {
-				TOUCH_D(DEBUG_BASE_INFO,
+				TOUCH_D(DEBUG_ABS,
 						"%d finger pressed: <%d> x[xxxx] y[xxxx] z[xxx]\n",
 						ts->pdata->touch_count_num,
 						new_id);
 			} else {
-				TOUCH_D(DEBUG_BASE_INFO,
+				TOUCH_D(DEBUG_ABS,
 						"%d finger pressed: <%d> x[%4d] y[%4d] z[%3d]\n",
 						ts->pdata->touch_count_num,
 						new_id,
@@ -987,7 +987,7 @@ static int report_event(struct lge_touch_data *ts)
 void release_all_touch_event(struct lge_touch_data *ts)
 {
 	if (atomic_read(&ts->state.rebase) == REBASE_DOING) {
-		TOUCH_D(DEBUG_BASE_INFO,
+		TOUCH_D(DEBUG_POWER,
 				"rebase work .\n");
 	}
 
@@ -1011,7 +1011,7 @@ void release_all_touch_event(struct lge_touch_data *ts)
 static int power_control(struct lge_touch_data *ts, int on_off)
 {
 	if (atomic_read(&ts->state.upgrade) == UPGRADE_START) {
-		TOUCH_D(DEBUG_BASE_INFO,
+		TOUCH_D(DEBUG_FW_UPGRADE,
 				"'Firmware-upgrade' is not finished, so power cannot be changed.\n");
 		return 0;
 	} else if (atomic_read(&ts->state.crack_test)
@@ -1050,7 +1050,7 @@ error:
  */
 static int interrupt_control(struct lge_touch_data *ts, int on_off)
 {
-	TOUCH_D(DEBUG_BASE_INFO, "interrupt_state[%d -> %d]\n",
+	TOUCH_D(DEBUG_IRQ_HANDLE, "interrupt_state[%d -> %d]\n",
 			atomic_read(&ts->state.interrupt), on_off);
 
 	if (atomic_read(&ts->state.interrupt) != on_off) {
@@ -1059,17 +1059,17 @@ static int interrupt_control(struct lge_touch_data *ts, int on_off)
 		if (on_off) {
 			touch_ts_enable_irq(ts->client->irq);
 		} else {
-			TOUCH_I("%s : disable irq nosync\n", __func__);
+			TOUCH_D(DEBUG_IRQ_HANDLE, "%s : disable irq nosync\n", __func__);
 			touch_ts_disable_irq(ts->client->irq);
 		}
 
 		if (ts->pdata->role->wake_up_by_touch && !is_probe) {
-			TOUCH_I("%s : enable_irq_wake once\n", __func__);
+			TOUCH_D(DEBUG_IRQ_HANDLE, "%s : enable_irq_wake once\n", __func__);
 			enable_irq_wake(ts->client->irq);
 		}
 	}
 
-	TOUCH_D(DEBUG_BASE_INFO, "interrupt_state[%d]\n", on_off);
+	TOUCH_D(DEBUG_IRQ_HANDLE, "interrupt_state[%d]\n", on_off);
 	return 0;
 }
 
@@ -3972,12 +3972,12 @@ static int lcd_notifier_callback(struct notifier_block *this,
 
 	switch (event) {
 	case LCD_EVENT_TOUCH_PWR_OFF:
-			TOUCH_D(DEBUG_BASE_INFO,
+			TOUCH_D(DEBUG_LPWG,
 					"LCD_EVENT_TOUCH_PWR_OFF\n");
 			power_control(ts, POWER_OFF);
 			break;
 	case LCD_EVENT_TOUCH_LPWG_ON:
-		TOUCH_D(DEBUG_BASE_INFO, "LCD_EVENT_TOUCH_LPWG_ON\n");
+		TOUCH_D(DEBUG_LPWG, "LCD_EVENT_TOUCH_LPWG_ON\n");
 		mutex_lock(&ts->pdata->thread_lock);
 		touch_device_func->lpwg(ts_data->client,
 				LPWG_INCELL_LPWG_ON, 0, NULL);
@@ -3990,7 +3990,7 @@ static int lcd_notifier_callback(struct notifier_block *this,
 					__func__);
 			return 0;
 		}
-		TOUCH_D(DEBUG_BASE_INFO, "LCD_EVENT_TOUCH_LPWG_OFF\n");
+		TOUCH_D(DEBUG_LPWG, "LCD_EVENT_TOUCH_LPWG_OFF\n");
 		mutex_lock(&ts->pdata->thread_lock);
 		touch_device_func->lpwg(ts_data->client,
 				LPWG_INCELL_LPWG_OFF, 0, NULL);
@@ -4000,18 +4000,18 @@ static int lcd_notifier_callback(struct notifier_block *this,
 		mode = *(int *)(unsigned long)data;
 		switch (mode) {
 		case SET_SLEEP_STATUS:
-			TOUCH_D(DEBUG_BASE_INFO,
+			TOUCH_D(DEBUG_LPWG,
 					"LCD_EVENT_TOUCH_SET_SLEEP_STATUS\n");
 			touch_device_func->power(ts->client,
 					POWER_SLEEP_STATUS);
 			break;
 		case SET_NO_SLEEP:
-			TOUCH_D(DEBUG_BASE_INFO, "LCD_EVENT_TOUCH_NO_SLEEP\n");
+			TOUCH_D(DEBUG_LPWG, "LCD_EVENT_TOUCH_NO_SLEEP\n");
 			touch_device_func->lpwg(ts_data->client,
 					LPWG_INCELL_NO_SLEEP, 0, NULL);
 			break;
 		case SET_EARLY_RESET:
-			TOUCH_D(DEBUG_BASE_INFO,
+			TOUCH_D(DEBUG_LPWG,
 					"LCD_EVENT_TOUCH_SET_EARLY_RESET\n");
 			if (ts->pdata->swipe_stat[1] == DO_SWIPE) {
 				ts->pdata->swipe_stat[1] = SWIPE_DONE;
@@ -4031,17 +4031,17 @@ static int lcd_notifier_callback(struct notifier_block *this,
 				touch_sleep_status(ts->client,
 					!ts->pdata->swipe_stat[0]);
 			} else {
-				TOUCH_D(DEBUG_BASE_INFO,
+				TOUCH_D(DEBUG_LPWG,
 					"Already done Touch IC reset\n");
 			}
 			break;
 		case SET_POWER_OFF:
-			TOUCH_D(DEBUG_BASE_INFO,
+			TOUCH_D(DEBUG_LPWG,
 					"LCD_EVENT_TOUCH_SET_POWER_OFF\n");
 			power_control(ts, POWER_OFF);
 			break;
 		case SET_DEEP_ACTIVE:
-			TOUCH_D(DEBUG_BASE_INFO, "Deep to Active!\n");
+			TOUCH_D(DEBUG_LPWG, "Deep to Active!\n");
 			ts->pdata->pwr->reset_control = SOFT_RESET;
 			mdelay(10);
 			mutex_lock(&ts->pdata->thread_lock);
