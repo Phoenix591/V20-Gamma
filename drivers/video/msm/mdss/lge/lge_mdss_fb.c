@@ -249,11 +249,11 @@ int lge_br_to_bl (struct msm_fb_data_type *mfd, int br_lvl)
 #if defined(CONFIG_LGE_DISPLAY_AOD_WITH_MIPI)
 	if (mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_BLANK ||
 		mfd->panel_info->aod_cur_mode == AOD_PANEL_MODE_U2_UNBLANK)
-		pr_info("[AOD] br_lvl(%d) -> bl_lvl(%d)\n", br_lvl, bl_lvl);
+		pr_debug("[AOD] br_lvl(%d) -> bl_lvl(%d)\n", br_lvl, bl_lvl);
 	else
-		pr_info("%s: br_lvl(%d) -> bl_lvl(%d)\n", lge_get_blmapname(blmaptype), br_lvl, bl_lvl);
+		pr_debug("%s: br_lvl(%d) -> bl_lvl(%d)\n", lge_get_blmapname(blmaptype), br_lvl, bl_lvl);
 #else
-	pr_info("%s: br_lvl(%d) -> bl_lvl(%d)\n", lge_get_blmapname(blmaptype), br_lvl, bl_lvl);
+	pr_debug("%s: br_lvl(%d) -> bl_lvl(%d)\n", lge_get_blmapname(blmaptype), br_lvl, bl_lvl);
 #endif
 	return bl_lvl;
 }
@@ -307,7 +307,7 @@ int lge_is_bl_update_blocked_ex(int bl_lvl)
 	lge_is_bl_ready_ex = 1;
 	if (lge_block_bl_update) {
 		lge_bl_lvl_unset_ex = bl_lvl;
-		pr_info("%s: do not control backlight (bl: %d)\n", __func__,
+		pr_debug("%s: do not control backlight (bl: %d)\n", __func__,
 			lge_bl_lvl_unset_ex);
 		return 1;
 	}
@@ -354,7 +354,7 @@ static ssize_t mdss_fb_set_bl_off_and_block(struct device *dev,
 
 	enable = simple_strtoul(buf, NULL, 10);
 	if (enable) {
-		pr_info("[%s] status : %d, brightness : 0 \n", __func__,
+		pr_debug("[%s] status : %d, brightness : 0 \n", __func__,
 			lge_block_bl_update);
 		mutex_lock(&mfd->bl_lock);
 		lge_block_bl_update = false;
@@ -367,7 +367,7 @@ static ssize_t mdss_fb_set_bl_off_and_block(struct device *dev,
 		lge_block_bl_update = true;
 		mutex_unlock(&mfd->bl_lock);
 	} else {
-		pr_info("[%s] status : %d, brightness : %d \n", __func__,
+		pr_debug("[%s] status : %d, brightness : %d \n", __func__,
 			lge_block_bl_update, lge_bl_lvl_unset);
 		mutex_lock(&mfd->bl_lock);
 		lge_block_bl_update = false;
@@ -515,7 +515,7 @@ void mdss_fb_set_backlight_ex(struct msm_fb_data_type *mfd, u32 bkl_lvl)
 		if ((mfd->panel_info->aod_cur_mode != AOD_PANEL_MODE_U2_BLANK)
 			&& (mfd->panel_info->aod_cur_mode != AOD_PANEL_MODE_U2_UNBLANK)) {
 			mfd->unset_bl_level_ex = bkl_lvl;
-			pr_info("[AOD] Skip ext-BL ctrl except U2 & U2unblank mode\n");
+			pr_debug("[AOD] Skip ext-BL ctrl except U2 & U2 unblank mode\n");
 			return;
 		}
 	} else if (mdss_fb_is_power_on(mfd) && mfd->panel_info->panel_dead) {
@@ -614,7 +614,7 @@ static void mdss_fb_set_bl_brightness_aod(struct led_classdev *led_cdev,
 	struct msm_fb_data_type *mfd = dev_get_drvdata(led_cdev->dev->parent);
 #if defined(CONFIG_LGE_DISPLAY_AOD_WITH_MIPI)
 	if (mfd->block_aod_bl) {
-		pr_info("[AOD] Save unset Level : %d\n", value);
+		pr_debug("[AOD] Save unset Level : %d\n", value);
 		mfd->unset_aod_bl = value;
 		return;
 	}
@@ -689,7 +689,7 @@ void lge_aod_bl_ctrl_blank_blank(struct msm_fb_data_type *mfd)
 #endif
 	if (mfd->panel_info->aod_cur_mode ==
 				AOD_PANEL_MODE_U2_BLANK && mfd->index == 0) {
-		pr_info("[AOD] Don't off backlight when U2 Blank\n");
+		pr_debug("[AOD] Don't off backlight when U2 blank\n");
 		mfd->unset_bl_level = U32_MAX;
 #if defined (CONFIG_LGE_DISPLAY_BL_EXTENDED)
 		mfd->unset_bl_level_ex = U32_MAX;
@@ -697,14 +697,14 @@ void lge_aod_bl_ctrl_blank_blank(struct msm_fb_data_type *mfd)
 	}
 #if defined (CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
 	else if(mfd->index == 0) {
-		pr_info("%s: backlight backup: bl_level %d\n", __func__, mfd->bl_level);
+		pr_debug("%s: backlight backup: bl_level %d\n", __func__, mfd->bl_level);
 		current_bl = mfd->bl_level;
 		mfd->allow_bl_update = true;
 		mdss_fb_set_backlight(mfd, 0);
 		mfd->allow_bl_update = false;
 		mfd->unset_bl_level = current_bl;
 #if defined (CONFIG_LGE_DISPLAY_BL_EXTENDED)
-		pr_info("%s: backlight backup: bl_level_ex %d\n", __func__, mfd->bl_level_ex);
+		pr_debug("%s: backlight backup: bl_level_ex %d\n", __func__, mfd->bl_level_ex);
 		current_bl = mfd->bl_level_ex;
 		mfd->allow_bl_update_ex = true;
 		mdss_fb_set_backlight_ex(mfd, 0);
@@ -786,7 +786,7 @@ int lge_br_to_bl_ex (struct msm_fb_data_type *mfd, int br_lvl)
 	if (pinfo->blmap[blmaptype])
 		bl_lvl = pinfo->blmap[blmaptype][br_lvl];
 
-	pr_info("%s: br_lvl(%d) -> bl_lvl(%d)\n", lge_get_blmapname(blmaptype),
+	pr_debug("%s: br_lvl(%d) -> bl_lvl(%d)\n", lge_get_blmapname(blmaptype),
 						br_lvl, bl_lvl);
 	return bl_lvl;
 	return bl_lvl;
@@ -970,7 +970,7 @@ void lge_mdss_fb_ad_set_brightness(struct msm_fb_data_type *mfd, u32 amb_light, 
 			pr_err("[Display] AD Off bl_lvl=%d\n",bl_lvl);
 			mutex_unlock(&mfd->bl_lock);
 		} else {
-			pr_info("Main Backlight already off. Or HL mode. No need to Set\n");
+			pr_debug("Main Backlight already off. Or HL mode. No need to set\n");
 			// represent AD off state
 			mfd->ad_info.old_ad_br_lvl = -1;
 			mfd->ad_info.ad_weight = 0;
@@ -1018,7 +1018,7 @@ static ssize_t mdss_fb_get_cur_panel_mode(struct device *dev,
 		cur_panel_mode = AOD_PANEL_MODE_U1_UNBLANK;
 #endif
 	mutex_unlock(&mfd->aod_lock);
-	pr_info("[AOD] %s : Current panel mode : %d\n", __func__ , cur_panel_mode);
+	pr_debug("[AOD] %s : Current panel mode : %d\n", __func__ , cur_panel_mode);
 	ret = scnprintf(buf, PAGE_SIZE, "%d\n",
 		cur_panel_mode);
 
@@ -1046,7 +1046,7 @@ static ssize_t mdss_fb_set_aod(struct device *dev,
 	old_value = pdata->panel_info.aod_node_from_user;
 	pdata->panel_info.aod_node_from_user = new_value;
 	mutex_unlock(&mfd->aod_lock);
-	pr_info("[AOD] old value : %d, new value : %d\n", old_value, new_value);
+	pr_debug("[AOD] old value : %d, new value : %d\n", old_value, new_value);
 	return len;
 }
 static ssize_t mdss_fb_get_aod(struct device *dev,
@@ -1093,7 +1093,7 @@ static ssize_t mdss_fb_set_keep_aod(struct device *dev,
 	old_value = pdata->panel_info.aod_keep_u2;
 	pdata->panel_info.aod_keep_u2 = new_value;
 	mutex_unlock(&mfd->aod_lock);
-	pr_info("[AOD] keep_aod old value : %d, new value : %d\n", old_value, new_value);
+	pr_debug("[AOD] keep_aod old value : %d, new value : %d\n", old_value, new_value);
 #if defined(CONFIG_LGE_DISPLAY_AOD_WITH_MIPI)
 	if (new_value == AOD_MOVE_TO_U3)
 		mfd->ready_to_u2 = false;
@@ -1113,7 +1113,7 @@ static ssize_t mdss_fb_set_keep_aod(struct device *dev,
 		ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
 
 #if defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
-		pr_info("[AOD] pdata->panel_info.aod_cur_mode : %d, pdata->panel_info.mipi.mode : %d\n",
+		pr_debug("[AOD] pdata->panel_info.aod_cur_mode : %d, pdata->panel_info.mipi.mode : %d\n",
 						pdata->panel_info.aod_cur_mode, pdata->panel_info.mipi.mode);
 		pdata->panel_info.mode_switch = CMD_TO_VIDEO;
 		rc = mdss_fb_mode_switch(mfd, CMD_TO_VIDEO);
@@ -1124,7 +1124,7 @@ static ssize_t mdss_fb_set_keep_aod(struct device *dev,
 #if IS_ENABLED(CONFIG_LGE_DISPLAY_BL_EXTENDED)
 		// this flag will reset 0 in full frame kickoff(__validate_roi_and_set function).
 		mfd->keep_aod_pending = true;
-		pr_info("keep_aod_pending set to true\n");
+		pr_debug("keep_aod_pending set to true\n");
 #endif
 #if !defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
 		rc = oem_mdss_aod_cmd_send(mfd, AOD_CMD_DISABLE);
@@ -1192,18 +1192,18 @@ static ssize_t mdss_fb_lge_set_mode_switch(struct device *dev,
 	}
 	pdata->panel_info.mode_switch = new_value;
 
-	pr_info("mode_switch : %d\n", new_value);
+	pr_debug("mode_switch : %d\n", new_value);
 
 	if (new_value == CMD_TO_VIDEO) { //case1. CMD TO VIDEO
-		pr_info("aod_mode = %d, mode_switch=%d\n",pdata->panel_info.aod_cur_mode,pdata->panel_info.mode_switch);
+		pr_debug("aod_mode = %d, mode_switch=%d\n",pdata->panel_info.aod_cur_mode,pdata->panel_info.mode_switch);
 		mdss_fb_mode_switch(mfd,new_value);
 	}
 	else if (new_value == VIDEO_TO_CMD) { //case2. VIDEO TO CMD
-		pr_info("aod_mode = %d, mode_switch=%d\n",pdata->panel_info.aod_cur_mode,pdata->panel_info.mode_switch);
+		pr_debug("aod_mode = %d, mode_switch=%d\n",pdata->panel_info.aod_cur_mode,pdata->panel_info.mode_switch);
 		mdss_fb_mode_switch(mfd,new_value);
 	}
 	else{
-		pr_info("unexpected mode switch");
+		pr_debug("unexpected mode switch");
 	}
 
 	return len;
@@ -1232,7 +1232,7 @@ static ssize_t mdss_fb_lge_get_mode_switch(struct device *dev,
 void lge_mdss_fb_aod_release(struct msm_fb_data_type *mfd)
 {
 		if (mfd->index == 0) {
-			pr_info("[AOD] Disable AOD mode when shutdown\n");
+			pr_debug("[AOD] Disable AOD mode when shutdown\n");
 			mfd->panel_info->aod_node_from_user = 0;
 			mfd->panel_info->aod_keep_u2 = AOD_NO_DECISION;
 		}
@@ -1270,10 +1270,10 @@ static ssize_t mdss_fb_toggle_u1(struct device *dev,
 		return -EINVAL;
 	}
 
-	pr_info("[AOD]%s called: ext_off: %d\n", __func__, ext_off);
+	pr_debug("[AOD]%s called: ext_off: %d\n", __func__, ext_off);
 	mutex_lock(&mfd->aod_lock);
 	if (pinfo->ext_off_temp != ext_off) {
-		pr_info("%d -> %d\n", pinfo->ext_off_temp, ext_off);
+		pr_debug("%d -> %d\n", pinfo->ext_off_temp, ext_off);
 		pinfo->ext_off_temp = ext_off;
 		oem_mdss_aod_set_backlight_mode(mfd);
 		mutex_lock(&mfd->bl_lock);
@@ -1325,10 +1325,10 @@ static ssize_t mdss_fb_set_ext_off(struct device *dev,
 		return -EINVAL;
 	}
 
-	pr_info("[AOD]%s called: ext_off: %d\n", __func__, ext_off);
+	pr_debug("[AOD]%s called: ext_off: %d\n", __func__, ext_off);
 	mutex_lock(&mfd->aod_lock);
 	if (pinfo->ext_off != ext_off) {
-		pr_info("%d -> %d\n", pinfo->ext_off, ext_off);
+		pr_debug("%d -> %d\n", pinfo->ext_off, ext_off);
 		pinfo->ext_off = ext_off;
 		pinfo->ext_off_temp = ext_off;
 		oem_mdss_aod_set_backlight_mode(mfd);
