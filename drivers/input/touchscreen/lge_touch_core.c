@@ -82,7 +82,7 @@ static int lpwg_status = 0;
 /* Debug mask value
  * usage: echo [debug_mask] > /sys/module/lge_touch_core/parameters/debug_mask
  */
-u32 touch_ts_debug_mask = DEBUG_BASE_INFO | DEBUG_LPWG_COORDINATES | DEBUG_TRACE;
+u32 touch_ts_debug_mask = DEBUG_NONE;
 module_param_named(debug_mask, touch_ts_debug_mask, int, S_IRUGO|S_IWUSR|S_IWGRP);
 
 #ifdef LGE_TOUCH_TIME_DEBUG
