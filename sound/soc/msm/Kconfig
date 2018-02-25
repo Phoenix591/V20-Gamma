@@ -192,12 +192,6 @@ config SND_SOC_MSM8X16
 	 the machine driver and the corresponding
 	 DAI-links
 
-config SND_LGE_USE_PHONE_MEMO
-	bool "LGE PHONE MEMO"
-	default n
-	help
-	 To support LGE PHONE MEMO TX MUTE
-
 config SND_LGE_DSDP_DUAL_AUDIO
 	bool "LGE DSDP DUAL AUDIO"
 	default n

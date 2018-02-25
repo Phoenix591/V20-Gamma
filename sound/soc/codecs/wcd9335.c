@@ -828,10 +828,6 @@ struct tasha_priv {
 
 	/* Lock to protect mclk enablement */
 	struct mutex mclk_lock;
-
-#ifdef CONFIG_SND_USE_KNOWLES_DMIC_DELAY
-	bool dmic_delay;
-#endif
 };
 
 static int tasha_codec_vote_max_bw(struct snd_soc_codec *codec,
@@ -1301,7 +1297,6 @@ static bool tasha_mbhc_micb_en_status(struct wcd_mbhc *mbhc, int micb_num)
 	u8 val;
 	if (micb_num == MIC_BIAS_2) {
 		val = (snd_soc_read(mbhc->codec, WCD9335_ANA_MICB2) >> 6);
-		pr_info("[LGE MBHC]@@@ check micb en status =%d\n", val);
 		if (val == 0x01)
 			return true;
 	}
@@ -1330,8 +1325,8 @@ static void tasha_mbhc_hph_l_pull_up_control(struct snd_soc_codec *codec,
 		__func__, pull_up_cur);
 
 	if (TASHA_IS_2_0(tasha->wcd9xxx->version))
-	{
 #if defined(CONFIG_SND_SOC_ES9018)||defined(CONFIG_SND_SOC_ES9218P)
+	{
 		if(enable_es9218p)
 			snd_soc_update_bits(codec, WCD9335_MBHC_PLUG_DETECT_CTL, 0xC0, 0xC0);
 		else
@@ -1340,7 +1335,9 @@ static void tasha_mbhc_hph_l_pull_up_control(struct snd_soc_codec *codec,
 		snd_soc_update_bits(codec, WCD9335_MBHC_PLUG_DETECT_CTL,
 			    0xC0, pull_up_cur << 6);
 #endif
+#if defined(CONFIG_SND_SOC_ES9018)||defined(CONFIG_SND_SOC_ES9218P)
 	}
+#endif
 	else
 		snd_soc_update_bits(codec, WCD9335_MBHC_PLUG_DETECT_CTL,
 			    0xC0, 0x40);
@@ -5981,8 +5978,6 @@ static int tasha_codec_enable_dec(struct snd_soc_dapm_widget *w,
 					    CF_MIN_3DB_150HZ << 5);
 		/* Enable TX PGA Mute */
 		snd_soc_update_bits(codec, tx_vol_ctl_reg, 0x10, 0x10);
-		/* Enable APC */
-		snd_soc_update_bits(codec, dec_cfg_reg, 0x08, 0x08);
 		break;
 	case SND_SOC_DAPM_POST_PMU:
 		snd_soc_update_bits(codec, hpf_gate_reg, 0x01, 0x00);
@@ -6012,7 +6007,6 @@ static int tasha_codec_enable_dec(struct snd_soc_dapm_widget *w,
 		hpf_cut_off_freq =
 			tasha->tx_hpf_work[decimator].hpf_cut_off_freq;
 		snd_soc_update_bits(codec, tx_vol_ctl_reg, 0x10, 0x10);
-		snd_soc_update_bits(codec, dec_cfg_reg, 0x08, 0x00);
 		if (cancel_delayed_work_sync(
 		    &tasha->tx_hpf_work[decimator].dwork)) {
 			if (hpf_cut_off_freq != CF_MIN_3DB_150HZ) {
@@ -6235,12 +6229,6 @@ static int tasha_codec_enable_dmic(struct snd_soc_dapm_widget *w,
 				dmic_rate_val << dmic_rate_shift);
 			snd_soc_update_bits(codec, dmic_clk_reg,
 					dmic_clk_en, dmic_clk_en);
-#ifdef CONFIG_SND_USE_KNOWLES_DMIC_DELAY
-			if (tasha->dmic_delay) {
-				dev_info(codec->dev, "%s: DMIC 70ms delay\n",__func__);
-				usleep_range(70000, 70100);
-			}
-#endif
 		}
 
 		break;
@@ -8095,11 +8083,11 @@ static int tasha_rx_hph_mode_put(struct snd_kcontrol *kcontrol,
 		__func__, mode_val);
 
 	if (mode_val == 0) {
-#if 0 //qct org
+#ifndef CONFIG_MACH_LGE
 		dev_warn(codec->dev, "%s:Invalid HPH Mode, default to Cls-H HiFi\n",
 			__func__);
 		mode_val = CLS_H_HIFI;
-#else //LG modification, LG default mode is set to CLS_H_LP
+#else // LG default mode is set to CLS_H_LP
 		dev_warn(codec->dev, "%s:Invalid HPH Mode, default to Cls-H LowPower\n",
 			__func__);
 		mode_val = CLS_H_LP;
@@ -8714,45 +8702,6 @@ static const struct soc_enum amic_pwr_lvl_enum =
 	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(amic_pwr_lvl_text),
 			    amic_pwr_lvl_text);
 
-#ifdef CONFIG_SND_USE_KNOWLES_DMIC_DELAY
-static int dmic_delay_func_get(struct snd_kcontrol *kcontrol,
-	struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct tasha_priv *tasha = snd_soc_codec_get_drvdata(codec);
-
-	ucontrol->value.integer.value[0] = tasha->dmic_delay;
-
-	dev_dbg(codec->dev, "%s: value: %lu\n", __func__,
-		ucontrol->value.integer.value[0]);
-
-	return 0;
-}
-
-static int dmic_delay_func_put(struct snd_kcontrol *kcontrol,
-					struct snd_ctl_elem_value *ucontrol)
-{
-	struct snd_soc_codec *codec = snd_soc_kcontrol_codec(kcontrol);
-	struct tasha_priv *tasha = snd_soc_codec_get_drvdata(codec);
-
-	dev_dbg(codec->dev, "%s: value: %lu\n", __func__,
-		ucontrol->value.integer.value[0]);
-
-	/* Set dmic delay for mic noise issue */
-	tasha->dmic_delay = ucontrol->value.integer.value[0];
-
-	return 0;
-}
-
-static const char * const dmic_delay_text[] = {
-	"OFF", "ON"
-};
-
-static const struct soc_enum dmic_delay_enum =
-	SOC_ENUM_SINGLE_EXT(ARRAY_SIZE(dmic_delay_text),
-			    dmic_delay_text);
-#endif
-
 static const struct snd_kcontrol_new tasha_snd_controls[] = {
 	SOC_SINGLE_SX_TLV("RX0 Digital Volume", WCD9335_CDC_RX0_RX_VOL_CTL,
 		0, -84, 40, digital_gain), /* -84dB min - 40dB max */
@@ -8986,11 +8935,6 @@ static const struct snd_kcontrol_new tasha_snd_controls[] = {
 	SOC_ENUM_EXT("GSM mode Enable", tasha_vbat_gsm_mode_enum,
 			tasha_vbat_gsm_mode_func_get,
 			tasha_vbat_gsm_mode_func_put),
-#endif
-#ifdef CONFIG_SND_USE_KNOWLES_DMIC_DELAY
-	SOC_ENUM_EXT("DMIC Delay", dmic_delay_enum,
-			dmic_delay_func_get,
-			dmic_delay_func_put),
 #endif
 };
 
@@ -13849,10 +13793,10 @@ static int tasha_post_reset_cb(struct wcd9xxx *wcd9xxx)
 
 	/* Class-H Init*/
 	wcd_clsh_init(&tasha->clsh_d);
-#if 0
+#ifndef CONFIG_MACH_LGE
 	/* Default HPH Mode to Class-H HiFi */
 	tasha->hph_mode = CLS_H_HIFI;
-#else //LG modification, LG default mode is set to CLS_H_LP
+#else // LG default mode is set to CLS_H_LP
 	/* Default HPH Mode to Class-H LowPower */
 	tasha->hph_mode = CLS_H_LP;
 #endif
@@ -13967,10 +13911,10 @@ static int tasha_codec_probe(struct snd_soc_codec *codec)
 	}
 	/* Class-H Init*/
 	wcd_clsh_init(&tasha->clsh_d);
-#if 0
+#ifndef CONFIG_MACH_LGE
 	/* Default HPH Mode to Class-H HiFi */
 	tasha->hph_mode = CLS_H_HIFI;
-#else //LG modification, LG default mode is set to CLS_H_LP
+#else // LG default mode is set to CLS_H_LP
 	/* Default HPH Mode to Class-H LowPower */
 	tasha->hph_mode = CLS_H_LP;
 #endif
@@ -14677,7 +14621,6 @@ static int tasha_probe(struct platform_device *pdev)
 	/* Register for Clock */
 	wcd_ext_clk = clk_get(tasha->wcd9xxx->dev, "wcd_clk");
 	if (IS_ERR(wcd_ext_clk)) {
-		ret = PTR_ERR(wcd_ext_clk); //LGE_UPDATE tasha_probe should not return 0 in case of ext_clk fail.
 		dev_err(tasha->wcd9xxx->dev, "%s: clk get %s failed\n",
 			__func__, "wcd_ext_clk");
 		goto err_clk;
