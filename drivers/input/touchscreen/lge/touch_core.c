@@ -38,7 +38,7 @@
 #define KEY_GESTURE_SLIDE_RIGHT      251
 #define KEY_GESTURE_SLIDE_LEFT	     252
 
-u32 touch_debug_mask = BASE_INFO;
+u32 touch_debug_mask = _NONE;
 /* Debug mask value
  * usage: echo [debug_mask] > /sys/module/touch_core/parameters/debug_mask
  */
@@ -63,7 +63,7 @@ static void touch_report_cancel_event(struct touch_core_data *ts)
 			input_report_key(ts->input, BTN_TOOL_FINGER, 1);
 			input_report_abs(ts->input, ABS_MT_PRESSURE,
 					255);
-			TOUCH_I("finger canceled:<%d>(%4d,%4d,%4d)\n",
+			TOUCH_D(BASE_INFO, "finger canceled:<%d>(%4d,%4d,%4d)\n",
 					i,
 					ts->tdata[i].x,
 					ts->tdata[i].y,
@@ -125,10 +125,12 @@ static void touch_report_event(struct touch_core_data *ts)
 					ts->tdata[i].orientation);
 			if (press_mask & (1 << i)) {
 				if (hide_lockscreen_coord) {
-					TOUCH_I("%d finger pressed:<%d>(xxxx,xxxx,xxxx)\n",
+					TOUCH_D(ABS,
+							"%d finger pressed:<%d>(xxxx,xxxx,xxxx)\n",
 							ts->tcount, i);
 				} else {
-					TOUCH_I("%d finger pressed:<%d>(%4d,%4d,%4d)\n",
+					TOUCH_D(ABS,
+							"%d finger pressed:<%d>(%4d,%4d,%4d)\n",
 							ts->tcount,
 							i,
 							ts->tdata[i].x,
@@ -141,10 +143,12 @@ static void touch_report_event(struct touch_core_data *ts)
 			//input_report_abs(ts->input, ABS_MT_TRACKING_ID, -1);
 			input_mt_report_slot_state(ts->input, MT_TOOL_FINGER, false);
 			if (hide_lockscreen_coord) {
-				TOUCH_I(" finger released:<%d>(xxxx,xxxx,xxxx)\n",
+					TOUCH_D(ABS,
+							" finger released:<%d>(xxxx,xxxx,xxxx)\n",
 						i);
 			} else {
-				TOUCH_I(" finger released:<%d>(%4d,%4d,%4d)\n",
+				TOUCH_D(ABS,
+						" finger released:<%d>(%4d,%4d,%4d)\n",
 						i,
 						ts->tdata[i].x,
 						ts->tdata[i].y,
@@ -187,7 +191,7 @@ irqreturn_t touch_irq_handler(int irq, void *dev_id)
 	TOUCH_TRACE();
 
 	if (atomic_read(&ts->state.pm) >= DEV_PM_SUSPEND) {
-		TOUCH_I("interrupt in suspend[%d]\n",
+		TOUCH_D(IRQ_HANDLE, "interrupt in suspend[%d]\n",
 				atomic_read(&ts->state.pm));
 		atomic_set(&ts->state.pm, DEV_PM_SUSPEND_IRQ);
 		wake_lock_timeout(&ts->lpwg_wake_lock, msecs_to_jiffies(1000));
@@ -230,7 +234,7 @@ irqreturn_t touch_irq_thread(int irq, void *dev_id)
 			touch_send_uevent(ts, TOUCH_UEVENT_SWIPE_LEFT);
 	} else {
 		if (ret == -ERESTART) {
-			TOUCH_I("IRQ - IC reset delay = %d\n",
+			TOUCH_D(LPWG, "IRQ - IC reset delay = %d\n",
 				ts->caps.hw_reset_delay);
 			touch_interrupt_control(ts->dev, INTERRUPT_DISABLE);
 			ts->driver->power(ts->dev, POWER_OFF);
@@ -257,7 +261,7 @@ static void touch_init_work_func(struct work_struct *init_work)
 
 	TOUCH_TRACE();
 
-	TOUCH_I("touch_ic_init Start\n");
+	TOUCH_D(BASE_INFO, "touch_ic_init Start\n");
 	mutex_lock(&ts->lock);
 	touch_core_initialize(ts);
 	ts->driver->init(ts->dev);
@@ -270,7 +274,7 @@ static void touch_init_work_func(struct work_struct *init_work)
 	}
 
 	atomic_set(&ts->state.core, CORE_NORMAL);
-	TOUCH_I("touch_ic_init End\n");
+	TOUCH_D(BASE_INFO, "touch_ic_init End\n");
 }
 
 static void touch_upgrade_work_func(struct work_struct *upgrade_work)
@@ -292,7 +296,7 @@ static void touch_upgrade_work_func(struct work_struct *upgrade_work)
 	ts->test_fwpath[0] = '\0';
 
 	if (ret < 0) {
-		TOUCH_I("There is no need to reset (ret: %d)\n", ret);
+		TOUCH_D(FW_UPGRADE, "There is no need to reset (ret: %d)\n", ret);
 		mutex_unlock(&ts->lock);
 		mod_delayed_work(ts->wq, &ts->init_work, 0);
 		return;
@@ -375,7 +379,7 @@ static int touch_init_input(struct touch_core_data *ts)
 
 	input->name = "touch_dev";
 
-	TOUCH_I("%s %d-%d-%d-%d-%d-%d-%d\n", __func__,
+	TOUCH_D(BASE_INFO, "%s %d-%d-%d-%d-%d-%d-%d\n", __func__,
 			ts->caps.max_x,
 			ts->caps.max_y,
 			ts->caps.max_pressure,
@@ -446,7 +450,7 @@ static void touch_suspend(struct device *dev)
 	int ret = 0;
 	TOUCH_TRACE();
 
-	TOUCH_I("%s Start\n", __func__);
+	TOUCH_D(BASE_INFO, "%s Start\n", __func__);
 	cancel_delayed_work_sync(&ts->init_work);
 	cancel_delayed_work_sync(&ts->upgrade_work);
 	atomic_set(&ts->state.uevent, UEVENT_IDLE);
@@ -456,7 +460,7 @@ static void touch_suspend(struct device *dev)
 	/* if need skip, return value is not 0 in pre_suspend */
 	ret = ts->driver->suspend(dev);
 	mutex_unlock(&ts->lock);
-	TOUCH_I("%s End\n", __func__);
+	TOUCH_D(BASE_INFO, "%s End\n", __func__);
 
 	if (ret == 1)
 		mod_delayed_work(ts->wq, &ts->init_work, 0);
@@ -468,13 +472,13 @@ static void touch_resume(struct device *dev)
 	int ret = 0;
 	TOUCH_TRACE();
 
-	TOUCH_I("%s Start\n", __func__);
+	TOUCH_D(BASE_INFO, "%s Start\n", __func__);
 	mutex_lock(&ts->lock);
 	atomic_set(&ts->state.fb, FB_RESUME);
 	/* if need skip, return value is not 0 in pre_resume */
 	ret = ts->driver->resume(dev);
 	mutex_unlock(&ts->lock);
-	TOUCH_I("%s End\n", __func__);
+	TOUCH_D(BASE_INFO, "%s End\n", __func__);
 
 	if (ret == 0)
 		mod_delayed_work(ts->wq, &ts->init_work, 0);
@@ -578,41 +582,41 @@ static void touch_send_uevent(struct touch_core_data *ts, int type)
 		atomic_set(&ts->state.uevent, UEVENT_BUSY);
 		kobject_uevent_env(&device_uevent_touch.kobj,
 				KOBJ_CHANGE, uevent_str[type]);
-		TOUCH_I("%s\n",  uevent_str[type][0]);
+		TOUCH_D(BASE_INFO, "%s\n",  uevent_str[type][0]);
 		touch_report_all_event(ts);
 	}
 	switch (type) {
 		case TOUCH_UEVENT_KNOCK:
 			input_report_key(ts->input, KEY_WAKEUP, 1);
-			TOUCH_I("Simulate power button depress\n");
+			TOUCH_D(BASE_INFO, "Simulate power button depress\n");
 			input_sync(ts->input);
 			input_report_key(ts->input, KEY_WAKEUP, 0);
-			TOUCH_I("Simulate power button release\n");
+			TOUCH_D(BASE_INFO, "Simulate power button release\n");
 			input_sync(ts->input);
 			break;
 		case TOUCH_UEVENT_SWIPE_UP:
-			TOUCH_I("Swipe UP reported\n");
+			TOUCH_D(BASE_INFO, "Swipe UP reported\n");
 			input_report_key(ts->input, KEY_GESTURE_SLIDE_UP, 1);
 			input_sync(ts->input);
 			input_report_key(ts->input, KEY_GESTURE_SLIDE_UP, 0);
 			input_sync(ts->input);
 			break;
 		case TOUCH_UEVENT_SWIPE_DOWN:
-			TOUCH_I("Swipe DOWN reported\n");
+			TOUCH_D(BASE_INFO, "Swipe DOWN reported\n");
 			input_report_key(ts->input, KEY_GESTURE_SLIDE_DOWN, 1);
 			input_sync(ts->input);
 			input_report_key(ts->input, KEY_GESTURE_SLIDE_DOWN, 0);
 			input_sync(ts->input);
 			break;
 		case TOUCH_UEVENT_SWIPE_RIGHT:
-			TOUCH_I("Swipe RIGHT reported\n");
+			TOUCH_D(BASE_INFO, "Swipe RIGHT reported\n");
 			input_report_key(ts->input, KEY_GESTURE_SLIDE_RIGHT, 1);
 			input_sync(ts->input);
 			input_report_key(ts->input, KEY_GESTURE_SLIDE_RIGHT, 0);
 			input_sync(ts->input);
 			break;
 		case TOUCH_UEVENT_SWIPE_LEFT:
-			TOUCH_I("Swipe LEFT reported\n");
+			TOUCH_D(BASE_INFO, "Swipe LEFT reported\n");
 			input_report_key(ts->input, KEY_GESTURE_SLIDE_LEFT, 1);
 			input_sync(ts->input);
 			input_report_key(ts->input, KEY_GESTURE_SLIDE_LEFT, 0);
@@ -826,7 +830,7 @@ static int touch_core_probe_normal(struct platform_device *pdev)
 	ret = touch_init_uevent(ts);
 	ret = touch_init_sysfs(ts);
 
-	TOUCH_I("hw_reset_delay : %d ms\n", ts->caps.hw_reset_delay);
+	TOUCH_D(BASE_INFO, "hw_reset_delay : %d ms\n", ts->caps.hw_reset_delay);
 	queue_delayed_work(ts->wq, &ts->init_work,
 			msecs_to_jiffies(ts->caps.hw_reset_delay));
 
@@ -872,7 +876,7 @@ static int touch_core_probe_charger(struct platform_device *pdev)
 static int touch_core_probe(struct platform_device *pdev)
 {
 	if (touch_boot_mode() == TOUCH_CHARGER_MODE) {
-		TOUCH_I("CHARGER MODE\n");
+		TOUCH_D(POWER, "CHARGER MODE\n");
 		return touch_core_probe_charger(pdev);
 	}
 
