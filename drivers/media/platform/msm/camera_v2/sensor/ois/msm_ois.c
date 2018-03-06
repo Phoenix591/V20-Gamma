@@ -27,15 +27,15 @@
 DEFINE_MSM_MUTEX(msm_ois_mutex);
 
 #ifdef CONFIG_LG_OIS
-	/* Moved to msm_ois.h */
+/* Moved to msm_ois.h */
 #else
-	//#define MSM_OIS_DEBUG
-	#undef CDBG
-	#ifdef MSM_OIS_DEBUG
-	#define CDBG(fmt, args...) pr_err(fmt, ##args)
-	#else
-	#define CDBG(fmt, args...) pr_debug(fmt, ##args)
-	#endif
+/*#define MSM_OIS_DEBUG*/
+#undef CDBG
+#ifdef MSM_OIS_DEBUG
+#define CDBG(fmt, args...) pr_err(fmt, ##args)
+#else
+#define CDBG(fmt, args...) pr_debug(fmt, ##args)
+#endif
 #endif
 
 #ifdef CONFIG_LG_OIS
@@ -321,6 +321,7 @@ static int32_t msm_ois_power_down(struct msm_ois_ctrl_t *o_ctrl)
 
 	CDBG("Enter\n");
 	if (o_ctrl->ois_state != OIS_DISABLE_STATE) {
+
 		rc = msm_ois_vreg_control(o_ctrl, 0);
 		if (rc < 0) {
 			pr_err("%s failed %d\n", __func__, __LINE__);
@@ -869,11 +870,13 @@ static long msm_ois_subdev_ioctl(struct v4l2_subdev *sd,
 			pr_err("o_ctrl->i2c_client.i2c_func_tbl NULL\n");
 			return -EINVAL;
 		}
+		mutex_lock(o_ctrl->ois_mutex);
 		rc = msm_ois_power_down(o_ctrl);
 		if (rc < 0) {
 			pr_err("%s:%d OIS Power down failed\n",
 				__func__, __LINE__);
 		}
+		mutex_unlock(o_ctrl->ois_mutex);
 		return msm_ois_close(sd, NULL);
 	default:
 		return -ENOIOCTLCMD;
@@ -1089,6 +1092,10 @@ static long msm_ois_subdev_do_ioctl(
 			parg = &ois_data;
 			break;
 		}
+		break;
+	case VIDIOC_MSM_OIS_CFG:
+		pr_err("%s: invalid cmd 0x%x received\n", __func__, cmd);
+		return -EINVAL;
 	}
 	rc = msm_ois_subdev_ioctl(sd, cmd, parg);
 
@@ -1337,15 +1344,16 @@ static int32_t msm_ois_platform_probe(struct platform_device *pdev)
 
 	rc = msm_sensor_driver_get_gpio_data(&(msm_ois_t->gconf),
 		(&pdev->dev)->of_node);
-	if (rc <= 0) {
-		pr_err("%s: No/Error OIS GPIO\n", __func__);
+	if (-ENODEV == rc) {
+		pr_notice("No valid OIS GPIOs data\n");
+	} else if (rc < 0) {
+		pr_err("Error OIS GPIO\n");
 	} else {
 		msm_ois_t->cam_pinctrl_status = 1;
 		rc = msm_camera_pinctrl_init(
 			&(msm_ois_t->pinctrl_info), &(pdev->dev));
 		if (rc < 0) {
-			pr_err("ERR:%s: Error in reading OIS pinctrl\n",
-				__func__);
+			pr_err("ERR: Error in reading OIS pinctrl\n");
 			msm_ois_t->cam_pinctrl_status = 0;
 		}
 	}

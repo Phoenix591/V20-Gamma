@@ -21,7 +21,7 @@
 #define SENSOR_INFO
 /* Logging macro */
 #undef CDBG
-#define CDBG(fmt, args...) pr_err(fmt, ##args)
+#define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
 #define SENSOR_MAX_MOUNTANGLE (360)
 
@@ -221,6 +221,7 @@ static int32_t msm_sensor_driver_create_i2c_v4l_subdev
 		pr_err("failed: camera_init_i2c_v4l2 rc %d", rc);
 		return rc;
 	}
+
 	CDBG("%s rc %d session_id %d\n", __func__, rc, session_id);
 	snprintf(s_ctrl->msm_sd.sd.name,
 		sizeof(s_ctrl->msm_sd.sd.name), "%s",
@@ -258,6 +259,7 @@ static int32_t msm_sensor_driver_create_v4l_subdev
 		pr_err("failed: camera_init_v4l2 rc %d", rc);
 		return rc;
 	}
+
 	CDBG("rc %d session_id %d", rc, session_id);
 	s_ctrl->sensordata->sensor_info->session_id = session_id;
 
@@ -538,7 +540,6 @@ static int32_t msm_sensor_fill_proxy_subdevid_by_name(
 		of_node_put(src_node);
 		src_node = NULL;
 	}
-
 	return rc;
 }
 
@@ -859,7 +860,7 @@ static int32_t msm_sensor_get_power_down_settings(void *setting,
 
 	/* Print power setting */
 	for (i = 0; i < size_down; i++) {
-		CDBG("DOWN seq_type %d seq_val %d config_val %ld delay %d\n",
+		CDBG("DOWN seq_type %d seq_val %d config_val %ld delay %d",
 			pd[i].seq_type, pd[i].seq_val,
 			pd[i].config_val, pd[i].delay);
 	}
@@ -1007,7 +1008,7 @@ static int32_t msm_sensor_get_power_up_settings(void *setting,
 
 	/* Print power setting */
 	for (i = 0; i < size; i++) {
-		CDBG("UP seq_type %d seq_val %d config_val %ld delay %d\n",
+		CDBG("UP seq_type %d seq_val %d config_val %ld delay %d",
 			pu[i].seq_type, pu[i].seq_val,
 			pu[i].config_val, pu[i].delay);
 	}
@@ -1403,11 +1404,6 @@ CSID_TG:
 
 	pr_err("%s probe succeeded", slave_info->sensor_name);
 
-	/*
-	  Set probe succeeded flag to 1 so that no other camera shall
-	 * probed on this slot
-	 */
-	s_ctrl->is_probe_succeed = 1;
 
 	/*
 	 * Update the subdevice id of flash-src based on availability in kernel.
@@ -1461,6 +1457,11 @@ CSID_TG:
 
 	msm_sensor_fill_sensor_info(s_ctrl, probed_info, entity_name);
 
+	/*
+	 * Set probe succeeded flag to 1 so that no other camera shall
+	 * probed on this slot
+	 */
+	s_ctrl->is_probe_succeed = 1;
 	return rc;
 
 camera_power_down:

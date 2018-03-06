@@ -21,13 +21,6 @@
 #undef CDBG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
-#if defined(CONFIG_LGE_CAM_PREVIEW_TUNE)
-/* LGE_CHANGE_S, LGE Preview tunning for lowlight, dongjin.ha */
-#define CAM_PREVIEW_TUNE_ON 1
-#define CAM_PREVIEW_TUNE_OFF 0
-extern int pp_set_cam_preview_tune_status(int flag);
-/* LGE_CHANGE_E, LGE Preview tunning for lowlight, dongjin.ha */
-#endif
 
 static void msm_sensor_adjust_mclk(struct msm_camera_power_ctrl_t *ctrl)
 {
@@ -201,10 +194,6 @@ int msm_sensor_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 		}
 	}
 
-#ifdef CONFIG_MACH_LGE
-	pr_info("%s(%d) %s\n", __func__, __LINE__, sensor_name);
-#endif
-
 	return rc;
 }
 
@@ -259,7 +248,7 @@ int msm_sensor_match_id(struct msm_sensor_ctrl_t *s_ctrl)
 		return rc;
 	}
 
-	pr_err("%s: read id: 0x%x expected id 0x%x:\n",
+	pr_debug("%s: read id: 0x%x expected id 0x%x:\n",
 			__func__, chipid, slave_info->sensor_id);
 	if (msm_sensor_id_by_mask(s_ctrl, chipid) != slave_info->sensor_id) {
 		pr_err("%s chip id %x does not match %x\n",
@@ -793,14 +782,6 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 
 		kfree(s_ctrl->stop_setting.reg_setting);
 		s_ctrl->stop_setting.reg_setting = NULL;
-
-#if defined(CONFIG_LGE_CAM_PREVIEW_TUNE)
-/* LGE_CHANGE_S, LGE Preview tunning for lowlight, dongjin.ha */
-		pr_err("CAM_PREVIEW_TUNE_OFF\n");
-		pp_set_cam_preview_tune_status(CAM_PREVIEW_TUNE_OFF);
-/* LGE_CHANGE_E, LGE Preview tunning for lowlight, dongjin.ha */
-#endif
-
 		if (s_ctrl->sensor_state != MSM_SENSOR_POWER_UP) {
 			pr_err("%s:%d failed: invalid state %d\n", __func__,
 				__LINE__, s_ctrl->sensor_state);
@@ -910,22 +891,6 @@ static int msm_sensor_config32(struct msm_sensor_ctrl_t *s_ctrl,
 		}
 		break;
 	}
-	case CFG_SET_PREVIEW_TUNE_ON: {
-/* LGE_CHANGE_S, LGE Preview tunning for lowlight, dongjin.ha */
-#if defined(CONFIG_LGE_CAM_PREVIEW_TUNE)
-	pr_err("CAM_PREVIEW_TUNE_ON\n");
-	pp_set_cam_preview_tune_status(CAM_PREVIEW_TUNE_ON);
-#endif
-	}
-	break;
-	case CFG_SET_PREVIEW_TUNE_OFF: {
-#if defined(CONFIG_LGE_CAM_PREVIEW_TUNE)
-	pr_err("CAM_PREVIEW_TUNE_OFF\n");
-	pp_set_cam_preview_tune_status(CAM_PREVIEW_TUNE_OFF);
-#endif
-	}
-	break;
-/* LGE_CHANGE_E, LGE Preview tunning for lowlight, dongjin.ha */
 
 	default:
 		rc = -EFAULT;
