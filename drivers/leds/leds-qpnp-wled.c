@@ -435,7 +435,6 @@ static int qpnp_wled_set_level(struct qpnp_wled *wled, int level)
 	int i, rc;
 	u8 reg;
 
-	DISP_DEBUG(BL, "Set level : %d\n", level);
 	/* set brightness registers */
 	for (i = 0; i < wled->num_strings; i++) {
 		reg = level & QPNP_WLED_BRIGHT_LSB_MASK;
@@ -489,7 +488,6 @@ static int qpnp_wled_module_en(struct qpnp_wled *wled,
 	if (rc)
 		return rc;
 
-	udelay(1000);
 	/* enable OVP fault interrupt */
 	if (state && (wled->ovp_irq > 0)) {
 		udelay(QPNP_WLED_OVP_FLT_SLEEP_US);
@@ -499,7 +497,6 @@ static int qpnp_wled_module_en(struct qpnp_wled *wled,
 		if (rc)
 			return rc;
 	}
-	pr_info("%s : wled module %s\n", __func__, state ? "enable" : "disable");
 
 	return 0;
 }
@@ -706,9 +703,9 @@ static ssize_t qpnp_wled_dim_mode_store(struct device *dev,
 	if (snprintf(str, QPNP_WLED_STR_SIZE, "%s", buf) > QPNP_WLED_STR_SIZE)
 		return -EINVAL;
 
-	if (strcmp(str, "analog") == 0)
+	if (strcmp(str, "analog\n") == 0)
 		temp = QPNP_WLED_DIM_ANALOG;
-	else if (strcmp(str, "digital") == 0)
+	else if (strcmp(str, "digital\n") == 0)
 		temp = QPNP_WLED_DIM_DIGITAL;
 	else
 		temp = QPNP_WLED_DIM_HYBRID;

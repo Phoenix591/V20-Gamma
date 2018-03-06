@@ -51,13 +51,7 @@
 #define CSID_VERSION_V40                      0x40000000
 #define MSM_CSID_DRV_NAME                    "msm_csid"
 
-#ifndef CONFIG_MACH_LGE
 #define DBG_CSID                             0
-#else
-/* LGE_CHANGE, CST, enabled csid sof debug feature */
-#define DBG_CSID                             1
-#endif
-
 #define SHORT_PKT_CAPTURE                    0
 #define SHORT_PKT_OFFSET                     0x200
 #define ENABLE_3P_BIT                        1
@@ -236,21 +230,34 @@ static void msm_csid_set_sof_freeze_debug_reg(
 static int msm_csid_reset(struct csid_device *csid_dev)
 {
 	int32_t rc = 0;
+	uint32_t irq = 0, irq_bitshift;
+
+	irq_bitshift = csid_dev->ctrl_reg->csid_reg.csid_rst_done_irq_bitshift;
 	msm_camera_io_w(csid_dev->ctrl_reg->csid_reg.csid_rst_stb_all,
 		csid_dev->base +
 		csid_dev->ctrl_reg->csid_reg.csid_rst_cmd_addr);
 	rc = wait_for_completion_timeout(&csid_dev->reset_complete,
 		CSID_TIMEOUT);
-	if (rc <= 0) {
+	if (rc < 0) {
 		pr_err("wait_for_completion in msm_csid_reset fail rc = %d\n",
 			rc);
-
-#ifndef CONFIG_MACH_LGE
-/* LGE_CHANGE_S, QCT W/A patch temporarily for msm_csid_reset failed, 2015-11-05, sunjae.jung@lge.com */
+	} else if (rc == 0) {
+		irq = msm_camera_io_r(csid_dev->base +
+			csid_dev->ctrl_reg->csid_reg.csid_irq_status_addr);
+		pr_err_ratelimited("%s CSID%d_IRQ_STATUS_ADDR = 0x%x\n",
+			__func__, csid_dev->pdev->id, irq);
+		if (irq & (0x1 << irq_bitshift)) {
+			rc = 1;
+			CDBG("%s succeeded", __func__);
+		} else {
+			rc = 0;
+			pr_err("%s reset csid_irq_status failed = 0x%x\n",
+				__func__, irq);
+		}
 		if (rc == 0)
 			rc = -ETIMEDOUT;
-/* LGE_CHANGE_E, QCT W/A patch temporarily for msm_csid_reset failed, 2015-11-05, sunjae.jung@lge.com */
-#endif
+	} else {
+		CDBG("%s succeeded", __func__);
 	}
 	return rc;
 }
@@ -316,7 +323,7 @@ static int msm_csid_config(struct csid_device *csid_dev,
 	if (!msm_csid_find_max_clk_rate(csid_dev))
 		pr_err("msm_csid_find_max_clk_rate failed\n");
 
-	clk_rate = (csid_params->csi_clk > 0) ?
+	clk_rate = ((int)csid_params->csi_clk > 0) ?
 				(csid_params->csi_clk) : csid_dev->csid_max_clk;
 
 	clk_rate = msm_camera_clk_set_rate(&csid_dev->pdev->dev,
@@ -487,20 +494,8 @@ static irqreturn_t msm_csid_irq(int irq_num, void *data)
 
 	irq = msm_camera_io_r(csid_dev->base +
 		csid_dev->ctrl_reg->csid_reg.csid_irq_status_addr);
-
-#ifndef CONFIG_MACH_LGE
 	pr_err_ratelimited("%s CSID%d_IRQ_STATUS_ADDR = 0x%x\n",
 		 __func__, csid_dev->pdev->id, irq);
-#else
-	/* LGE_CHANGE, CST, enabled csid sof debug feature */
-	if (csid_dev->csid_sof_debug == SOF_DEBUG_ENABLE)
-		pr_err("%s CSID%d_IRQ_STATUS_ADDR = 0x%x\n",
-		 __func__, csid_dev->pdev->id, irq);
-	else
-	    pr_err_ratelimited("%s CSID%d_IRQ_STATUS_ADDR = 0x%x\n",
-		 __func__, csid_dev->pdev->id, irq);
-#endif
-
 	if (irq & (0x1 <<
 		csid_dev->ctrl_reg->csid_reg.csid_rst_done_irq_bitshift))
 		complete(&csid_dev->reset_complete);
