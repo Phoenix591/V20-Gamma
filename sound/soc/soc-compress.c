@@ -454,12 +454,8 @@ static int soc_compr_set_params_fe(struct snd_compr_stream *cstream,
 					struct snd_compr_params *params)
 {
 	struct snd_soc_pcm_runtime *fe = cstream->private_data;
-#ifdef CONFIG_MACH_LGE
-	struct snd_pcm_substream *fe_substream = fe->pcm->streams[0].substream;
-#else
 	struct snd_pcm_substream *fe_substream =
 		 fe->pcm->streams[cstream->direction].substream;
-#endif
 	struct snd_soc_platform *platform = fe->platform;
 	struct snd_soc_pcm_runtime *be_list[DPCM_MAX_BE_USERS];
 	struct snd_soc_dpcm *dpcm;
