@@ -86,7 +86,7 @@ struct msm_isp_bufq *msm_isp_get_bufq(
 	/* bufq_handle cannot be 0 */
 	if ((bufq_handle == 0) ||
 		bufq_index >= BUF_MGR_NUM_BUF_Q ||
-		(bufq_index > buf_mgr->num_buf_q))
+		(bufq_index >= buf_mgr->num_buf_q))
 		return NULL;
 
 	bufq = &buf_mgr->bufq[bufq_index];
@@ -1285,39 +1285,40 @@ static int msm_isp_deinit_isp_buf_mgr(
 int msm_isp_proc_buf_cmd(struct msm_isp_buf_mgr *buf_mgr,
 	unsigned int cmd, void *arg)
 {
+	int rc = -EINVAL;
 	switch (cmd) {
 	case VIDIOC_MSM_ISP_REQUEST_BUF: {
 		struct msm_isp_buf_request *buf_req = arg;
 
-		buf_mgr->ops->request_buf(buf_mgr, buf_req);
+		rc = buf_mgr->ops->request_buf(buf_mgr, buf_req);
 		break;
 	}
 	case VIDIOC_MSM_ISP_ENQUEUE_BUF: {
 		struct msm_isp_qbuf_info *qbuf_info = arg;
 
-		buf_mgr->ops->enqueue_buf(buf_mgr, qbuf_info);
+		rc = buf_mgr->ops->enqueue_buf(buf_mgr, qbuf_info);
 		break;
 	}
 	case VIDIOC_MSM_ISP_DEQUEUE_BUF: {
 		struct msm_isp_qbuf_info *qbuf_info = arg;
 
-		buf_mgr->ops->dequeue_buf(buf_mgr, qbuf_info);
+		rc = buf_mgr->ops->dequeue_buf(buf_mgr, qbuf_info);
 		break;
 	}
 	case VIDIOC_MSM_ISP_RELEASE_BUF: {
 		struct msm_isp_buf_request *buf_req = arg;
 
-		buf_mgr->ops->release_buf(buf_mgr, buf_req->handle);
+		rc = buf_mgr->ops->release_buf(buf_mgr, buf_req->handle);
 		break;
 	}
 	case VIDIOC_MSM_ISP_UNMAP_BUF: {
 		struct msm_isp_unmap_buf_req *unmap_req = arg;
 
-		buf_mgr->ops->unmap_buf(buf_mgr, unmap_req->fd);
+		rc = buf_mgr->ops->unmap_buf(buf_mgr, unmap_req->fd);
 		break;
 	}
 	}
-	return 0;
+	return rc;
 }
 
 static int msm_isp_buf_mgr_debug(struct msm_isp_buf_mgr *buf_mgr,

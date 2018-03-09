@@ -23,7 +23,7 @@
 #endif
 
 #undef CDBG
-#define CDBG(fmt, args...) pr_debug("%s(%d) "fmt, __func__, __LINE__, ##args)
+#define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
 DEFINE_MSM_MUTEX(msm_eeprom_mutex);
 #ifdef CONFIG_COMPAT
@@ -893,7 +893,7 @@ static int msm_eeprom_i2c_probe(struct i2c_client *client,
 	}
 	e_ctrl->eeprom_v4l2_subdev_ops = &msm_eeprom_subdev_ops;
 	e_ctrl->eeprom_mutex = &msm_eeprom_mutex;
-	CDBG("%s client = 0x%p\n", __func__, client);
+	CDBG("%s client = 0x%pK\n", __func__, client);
 
 #ifndef CONFIG_MACH_LGE
 	e_ctrl->eboard_info = (struct msm_eeprom_board_info *)(id->driver_data);
