@@ -514,11 +514,9 @@ static void lge_monitor_batt_temp_work(struct work_struct *work){
 	union power_supply_propval ret = {0,};
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_CABLE_DETECT
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_SIMPLE
-// do nothing
+	// do nothing
 #else
-#if 0//def CONFIG_LGE_PM_LGE_POWER_CLASS_CABLE_DETECT
 	union lge_power_propval lge_val = {0,};
-#endif
 #endif
 #endif
 	struct lge_charging_controller *cc =
