@@ -80,7 +80,7 @@ static int lge_power_adc_get_property(struct lge_power *lpc,
 	int rc = 0;
 	struct lge_adc *lge_adc_chip
 			= container_of(lpc, struct lge_adc, lge_adc_lpc);
-	union power_supply_propval prop = {0, };
+//	union power_supply_propval prop = {0, };
 
 	switch (lpp) {
 	case LGE_POWER_PROP_STATUS:
@@ -128,6 +128,7 @@ static int lge_power_adc_get_property(struct lge_power *lpc,
 		break;
 
 	case LGE_POWER_PROP_BATT_THERM_PHY:
+#if 0
 #ifdef CONFIG_ARCH_MSM8996
 	rc = lge_adc_chip->bms_psy->get_property(lge_adc_chip->bms_psy,
 			POWER_SUPPLY_PROP_TEMP, &prop);
@@ -144,7 +145,7 @@ static int lge_power_adc_get_property(struct lge_power *lpc,
 					pr_err("Failed to get bms property\n");
 					rc = -1;
 				} else {
-					rc = lge_adc_chip->bms_psy->get_property(lge_adc_chip->bms_psy,
+					rc = lge_adc_chip->bms_psy->desc->get_property(lge_adc_chip->bms_psy,
 						POWER_SUPPLY_PROP_TEMP, &prop);
 					if (rc) {
 						pr_err("Failed to get temp from property\n");
@@ -164,11 +165,15 @@ static int lge_power_adc_get_property(struct lge_power *lpc,
 			val->intval = 0;
 		}
 #endif
+#else
+		val->intval = 0;
+#endif
 		break;
 
 	case LGE_POWER_PROP_BATT_THERM_RAW:
+#if 0
 #ifdef CONFIG_ARCH_MSM8996
-	rc = lge_adc_chip->bms_psy->get_property(lge_adc_chip->bms_psy,
+	rc = lge_adc_chip->bms_psy->desc->get_property(lge_adc_chip->bms_psy,
 			POWER_SUPPLY_PROP_TEMP, &prop);
 	val->intval = prop.intval;
 #else
@@ -184,7 +189,7 @@ static int lge_power_adc_get_property(struct lge_power *lpc,
 					pr_err("Failed to get bms property\n");
 					rc = -1;
 				} else {
-					rc = lge_adc_chip->bms_psy->get_property(lge_adc_chip->bms_psy,
+					rc = lge_adc_chip->bms_psy->desc->get_property(lge_adc_chip->bms_psy,
 						POWER_SUPPLY_PROP_TEMP, &prop);
 					if (rc) {
 						pr_err("Failed to get temp from property\n");
@@ -203,6 +208,9 @@ static int lge_power_adc_get_property(struct lge_power *lpc,
 		} else {
 			val->intval = 0;
 		}
+#endif
+#else
+		val->intval = 0;
 #endif
 		break;
 
@@ -234,7 +242,7 @@ static int lge_power_adc_get_property(struct lge_power *lpc,
 			if (lge_adc_chip->usb_id_channel != 0xFF) {
 				rc = qpnp_vadc_read(lge_adc_chip->pm_vadc,
 					lge_adc_chip->usb_id_channel, &results);
-			} else {
+		} else {
 				pr_err("VADC is not used for USB_ID!!!\n");
 				rc = -1;
 			}
@@ -422,7 +430,7 @@ static int lge_adc_qct_probe(struct platform_device *pdev)
 {
 	struct lge_adc *lge_adc_chip;
 	struct lge_power *lge_power_adc;
-	union power_supply_propval prop = {0, };
+//	union power_supply_propval prop = {0, };
 	int ret;
 
 	pr_err("lge_battery_probe starts!!!\n");
@@ -454,12 +462,15 @@ static int lge_adc_qct_probe(struct platform_device *pdev)
 			goto err_free;
 		}
 	}
+
+#if 0
 	lge_adc_chip->bms_psy = power_supply_get_by_name("bms");
 	if (lge_adc_chip->bms_psy == NULL) {
 		pr_err("Failed to get bms property\n");
+		ret = -EPROBE_DEFER;
 		goto err_free;
 	}
-
+#endif
 	lge_adc_chip->lge_cc_lpc = lge_power_get_by_name("lge_cc");
 	if (!lge_adc_chip->lge_cc_lpc)
 		pr_err("No yet charging_cotroller\n");
@@ -479,8 +490,8 @@ static int lge_adc_qct_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(pdev->dev.of_node, "lge,bd2_therm_chan",
 				&lge_adc_chip->bd2_therm_channel);
 
-#ifdef CONFIG_ARCH_MSM8996
-	ret = lge_adc_chip->bms_psy->get_property(lge_adc_chip->bms_psy,
+#if 0 //def CONFIG_ARCH_MSM8996
+	ret = lge_adc_chip->bms_psy->desc->get_property(lge_adc_chip->bms_psy,
 			POWER_SUPPLY_PROP_TEMP, &prop);
 	lge_adc_chip->batt_therm_channel = prop.intval;
 #else

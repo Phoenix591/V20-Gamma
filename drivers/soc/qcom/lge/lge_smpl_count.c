@@ -20,7 +20,7 @@
 #include <linux/of_fdt.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
-#include <linux/qpnp/power-on.h>
+#include <linux/input/qpnp-power-on.h>
 #include <soc/qcom/smem.h>
 
 #define MODULE_NAME "lge_smpl_count"
@@ -32,6 +32,7 @@
 #define PWR_ON_EVENT_RTC              0x04
 #define PWR_ON_EVENT_SMPL             0x02
 #define PWR_ON_EVENT_HARD_RESET       0x01
+#define PWR_OFF_EVENT_S3_RESET        39
 
 static int dummy_arg;
 
@@ -41,10 +42,10 @@ struct lge_smpl_count_data {
 
 static struct lge_smpl_count_data *data;
 
-u16 *poweron_st = 0;
+uint16_t *poweron_st = NULL;
 uint16_t power_on_status_info_get(void)
 {
-	poweron_st = smem_alloc(SMEM_POWER_ON_STATUS_INFO, sizeof(poweron_st),
+	poweron_st = smem_alloc(SMEM_POWER_ON_STATUS_INFO, sizeof(poweron_st)*2,
 							0, SMEM_ANY_HOST_FLAG);
 
 	if (poweron_st == NULL)
@@ -56,17 +57,20 @@ uint16_t power_on_status_info_get(void)
 static int read_smpl_count(char *buffer, const struct kernel_param *kp)
 {
 	uint16_t boot_cause;
-	int warm_reset;
+	int warm_reset, poff_sts;
 
 	boot_cause = power_on_status_info_get();
 	warm_reset = qpnp_pon_is_warm_reset();
-	pr_info("[BOOT_CAUSE] %d, warm_reset = %d \n", boot_cause, warm_reset);
+	poff_sts = qpnp_pon_is_off_reason();
+	pr_info("[BOOT_CAUSE] PON:0x%2x, warm_reset:%d, POFF:%d\n",
+			boot_cause, warm_reset, poff_sts);
 
 	if (data == NULL){
 		pr_err("lge_smpl_count_data is NULL\n");
 		return -1;
 	}
-	if ((boot_cause &= PWR_ON_EVENT_SMPL) && (warm_reset == 0)) {
+	if (((poff_sts == PWR_OFF_EVENT_S3_RESET) || (boot_cause &= PWR_ON_EVENT_SMPL))
+			&& (warm_reset == 0)) {
 		pr_info("[SMPL_CNT] ===> is smpl boot\n");
 		data->smpl_boot = 1;
 	} else {
@@ -88,7 +92,6 @@ static int lge_smpl_count_probe(struct platform_device *pdev)
 		pr_err("%s: No memory\n", __func__);
 		return -ENOMEM;
 	}
-
 	return 0;
 }
 
@@ -133,4 +136,3 @@ module_exit(lge_smpl_count_exit);
 
 MODULE_DESCRIPTION("LGE smpl_count");
 MODULE_LICENSE("GPL");
-

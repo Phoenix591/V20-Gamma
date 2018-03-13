@@ -3,15 +3,11 @@
 
 #include <linux/list.h>
 #include <linux/kernel.h>
-#include <linux/power_supply.h>
 
-#define LIMIT_VALUE_GRINDER 	10
-#define LIMIT_TOTALLY_RELEASED	((INT_MAX/LIMIT_VALUE_GRINDER)*LIMIT_VALUE_GRINDER)
-#define LIMIT_TOTALLY_BLOCKED 	0
+#define INTVAL_GRINDER 10
+#define LIMIT_RELEASED ((INT_MAX/INTVAL_GRINDER)*INTVAL_GRINDER)
 
-#define LIMIT_NAME_LENGTH 20
-
-enum limit_type {
+enum limit_voter_type {
 	LIMIT_VOTER_INVALID = -1,
 
 	LIMIT_VOTER_IUSB = 0, LIMIT_VOTER_IBAT, LIMIT_VOTER_IDC,
@@ -21,32 +17,37 @@ enum limit_type {
 	LIMIT_VOTER_MAX,
 };
 
-struct limit_voter {
+struct limit_voter_entry {
 	struct list_head node;
 	int id;
 
-	char name[LIMIT_NAME_LENGTH];
-	enum limit_type type;
+	enum limit_voter_type type;
+	const char* name;
 	int limit; // in mA
 
-	int (*activated)(struct limit_voter* entry); // called-back when its charger source is attached.
-	int (*effected)(struct limit_voter* entry); // called-back when its voted value is effected.
-	int (*deactivated)(struct limit_voter* entry); // called-back when its charger source is detached.
+	int (*effected)(void); // called-back when its voted value is effected.
+	int (*activated)(void); // called-back when its charger source is attached.
+	int (*deactivated)(void); // called-back when its charger source is detached.
+};
+
+struct limit_voter_list {
+	struct list_head head;
+	struct mutex lock;
+	enum limit_voter_type type;
 };
 
 static inline union power_supply_propval vote_make(
-		enum limit_type limit_type, int limit_current) {
-	union power_supply_propval vote = {
-			.intval = (limit_current / LIMIT_VALUE_GRINDER) * LIMIT_VALUE_GRINDER + limit_type
-	};
+		enum limit_voter_type limit_type, int limit_current) {
+	union power_supply_propval vote = { .intval = (limit_current
+			/ INTVAL_GRINDER) * INTVAL_GRINDER + limit_type };
 	return vote;
 }
 
-static inline enum limit_type vote_type(
+static inline enum limit_voter_type vote_type(
 		const union power_supply_propval* vote) {
-	enum limit_type type = LIMIT_VOTER_INVALID;
+	enum limit_voter_type type = LIMIT_VOTER_INVALID;
 
-	switch (vote->intval % LIMIT_VALUE_GRINDER) {
+	switch (vote->intval % INTVAL_GRINDER) {
 	case LIMIT_VOTER_IUSB:
 		type = LIMIT_VOTER_IUSB;
 		break;
@@ -64,19 +65,7 @@ static inline enum limit_type vote_type(
 }
 
 static inline int vote_current(const union power_supply_propval* vote) {
-	return (vote->intval / LIMIT_VALUE_GRINDER) * LIMIT_VALUE_GRINDER;
+	return (vote->intval / INTVAL_GRINDER) * INTVAL_GRINDER;
 }
-
-struct limit_voter* limit_voter_getbyname(char* name);
-void limit_voter_activate(void);
-void limit_voter_deactivate(void);
-void limit_voter_set(struct limit_voter* voter, int limit);
-void limit_voter_release(struct limit_voter* voter);
-void limit_voter_unregister(struct limit_voter* entry);
-int limit_voter_register(struct limit_voter* entry, const char* name,
-		enum limit_type type,
-		int (*activate)(struct limit_voter *entry),
-		int (*effected)(struct limit_voter *entry),
-		int (*deactivate)(struct limit_voter *entry));
 
 #endif

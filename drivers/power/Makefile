@@ -98,4 +98,3 @@ obj-$(CONFIG_LGE_PM_BATTERY_SWAP) += lge_battery_swap.o
 obj-$(CONFIG_LGE_APPS_PORT_FRIENDS) += lge_friends_manager.o
 obj-$(CONFIG_ARCH_MSM)		+= qcom/
 obj-$(CONFIG_LGE_PM_LGE_POWER_CLASS_VZW_REQ)		+= lge_vzw_req.o
-obj-$(CONFIG_LGE_PM_BATTERY_VENEER)	+= lge/

@@ -49,6 +49,34 @@ static char *pb_lge_supplied_to[] = {
 	"lge_cc",
 };
 
+static int lge_pb_set_pseudo_batt(struct lge_pseudo_battery *chip,
+		const union lge_power_propval *val)
+{
+	int set_mode, set_id, set_therm, set_temp = 0;
+	int set_volt, set_capacity, set_charging = 0;
+
+	if (val->strval == NULL)
+		return -EINVAL;
+
+	if (sscanf(val->strval, "%d %d %d %d %d %d %d",
+				&set_mode, &set_id, &set_therm, &set_temp, &set_volt,
+				&set_capacity, &set_charging) != 7) {
+		if (set_mode == 0 || set_mode == 1)
+			chip->mode = set_mode;
+		else
+			return -EINVAL;
+	} else {
+		chip->mode = set_mode;
+		chip->id = set_id;
+		chip->therm = set_therm;
+		chip->temp = set_temp;
+		chip->volt = set_volt;
+		chip->capacity = set_capacity;
+		chip->charging = set_charging;
+	}
+	return 0;
+}
+
 static enum lge_power_property lge_power_lge_pb_properties[] = {
 	LGE_POWER_PROP_PSEUDO_BATT,
 	LGE_POWER_PROPS_PSEUDO_BATT_MODE,
@@ -92,7 +120,7 @@ static int lge_power_lge_pb_set_property(struct lge_power *lpc,
 
 	switch (lpp) {
 	case LGE_POWER_PROP_PSEUDO_BATT:
-		chip->mode = val->intval;
+		ret_val = lge_pb_set_pseudo_batt(chip, val);
 		break;
 	case LGE_POWER_PROPS_PSEUDO_BATT_MODE:
 		chip->mode = val->intval;

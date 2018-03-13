@@ -20,34 +20,20 @@
 
 #include <linux/kernel.h>
 
-#define CONFIG_LGE_THERMALE_CHG_CONTROL
 #define CONFIG_LGE_PSEUDO_CHG_UI
 
 #define DC_IUSB_VOLTUV   4000000
 #define DC_IUSB_CURRENT  450
 #define DC_CURRENT_DEF   -1
 
-#ifndef CONFIG_MACH_MSM8996_H1
 #define HIGH_VBAT_THREHSOLD	3980000 // 4000 mV - float voltage margin 20 mV
 
-#define DECCUR_FLOAT_VOLTAGE	4000 // Warm & Cool float voltage 4000 mV
-#define DECCUR_CHG_CURRENT_DIVIDER	3 // Warm & Cool chg current 0.3C
-#endif
+#define DECCUR_FLOAT_VOLTAGE	4000000 // Warm & Cool float voltage 4000 mV
+#define DECCUR_CHG_CURRENT_DIVIDER	2 // Warm & Cool chg current 0.5C
 
 /* Battery temperature states */
 
 #ifdef CONFIG_LGE_PM_OTP_SCENARIO_FOR_SPRINT
-#ifdef CONFIG_MACH_MSM8996_H1
-enum lge_battemp_states {
-	CHG_BATTEMP_BL_UT,
-	CHG_BATTEMP_M5_M3,
-	CHG_BATTEMP_M2_39,
-	CHG_BATTEMP_40_42,
-	CHG_BATTEMP_43_50,
-	CHG_BATTEMP_51_OT,
-	CHG_BATTEMP_AB_OT,
-};
-#else
 enum lge_battemp_states {
 	CHG_BATTEMP_BL_UT,
 	CHG_BATTEMP_0_3,
@@ -57,18 +43,6 @@ enum lge_battemp_states {
 	CHG_BATTEMP_42_45,
 	CHG_BATTEMP_45_50,
 	CHG_BATTEMP_50_OT,
-	CHG_BATTEMP_AB_OT,
-};
-#endif
-#else
-#ifdef CONFIG_MACH_MSM8996_H1
-enum lge_battemp_states {
-	CHG_BATTEMP_BL_UT,
-	CHG_BATTEMP_M10_M5,
-	CHG_BATTEMP_M4_39,
-	CHG_BATTEMP_40_42,
-	CHG_BATTEMP_43_51,
-	CHG_BATTEMP_52_OT,
 	CHG_BATTEMP_AB_OT,
 };
 #else
@@ -83,7 +57,6 @@ enum lge_battemp_states {
 	CHG_BATTEMP_52_OT,
 	CHG_BATTEMP_AB_OT,
 };
-#endif
 #endif
 
 /* LGE charging states */
@@ -115,15 +88,13 @@ enum lge_btm_states {
 struct charging_info {
 	int     batt_volt;
 	int     batt_temp;
+	int     lcs_en;
 	int     is_charger;
 	int     current_now;
-#ifndef CONFIG_MACH_MSM8996_H1
-	int		max_chg_volt;
-#endif
-#ifdef CONFIG_LGE_THERMALE_CHG_CONTROL
+	int     max_chg_volt;
 	int     chg_current_ma;
 	int     chg_current_te;
-#endif
+	bool    is_over_volt;
 	bool	is_charger_changed;
 };
 
@@ -132,10 +103,8 @@ struct charging_rsp {
 	enum lge_states_changes     change_lvl;
 	bool                        force_update;
 	bool                        disable_chg;
-	int				chg_current;
-#ifndef CONFIG_MACH_MSM8996_H1
-	int				float_voltage;
-#endif
+	int                         chg_current;
+	int                         float_voltage;
 	enum lge_btm_states         btm_state;
 	int                         pseudo_chg_ui;
 };
@@ -150,4 +119,3 @@ extern void
 lge_monitor_batt_temp(struct charging_info req, struct charging_rsp *res);
 #endif
 /* __LGE_CHARGING_SCENARIO_H_ */
-

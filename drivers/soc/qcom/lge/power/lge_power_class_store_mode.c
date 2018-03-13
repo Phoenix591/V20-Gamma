@@ -41,9 +41,6 @@ struct lge_store_mode {
 	int llk_max_thr_soc;
 	int llk_min_thr_soc;
 	int iusb_enable;
-#ifdef CONFIG_LGE_PM_ONLY_STORE_MODE
-	int default_set;
-#endif
 	struct work_struct llk_work;
 };
 
@@ -51,28 +48,51 @@ static void lge_sm_llk_work(struct work_struct *work)
 {
 	struct lge_store_mode *chip = container_of(work, struct lge_store_mode,
 						llk_work);
+	union power_supply_propval pval = {0,};
 	int prev_chg_enable = chip->charging_enable;
 	int prev_iusb_enable = chip->iusb_enable;
+	int rc = 0;
 
-	if (chip->chg_present) {
-		if (chip->capacity > chip->llk_max_thr_soc) {
-			chip->iusb_enable = 0;
-		} else {
-			chip->iusb_enable = 1;
+	if (chip->store_demo_enabled) {
+		if (chip->chg_present) {
+			if (!chip->batt_psy)
+				chip->batt_psy = power_supply_get_by_name("battery");
+			if (!chip->batt_psy) {
+				pr_err("battery is not yet ready\n");
+			} else {
+				rc = chip->batt_psy->desc->get_property(chip->batt_psy,
+						POWER_SUPPLY_PROP_CAPACITY, &pval);
+				if (rc < 0) {
+					pr_err("cannot get capacity!\n");
+				} else {
+					chip->capacity = pval.intval;
+					pr_debug("capacity : %d\n", chip->capacity);
+				}
+			}
+
+			if (chip->capacity > chip->llk_max_thr_soc) {
+				chip->iusb_enable = 0;
+			} else {
+				chip->iusb_enable = 1;
+			}
+			if (chip->capacity >= chip->llk_max_thr_soc) {
+				chip->charging_enable = 0;
+				pr_info("Stop charging by LLK_mode.\n");
+			}
+			if (chip->capacity < chip->llk_min_thr_soc) {
+				chip->charging_enable = 1;
+				pr_info("Start Charging by LLK_mode.\n");
+			}
 		}
-		if (chip->capacity >= chip->llk_max_thr_soc) {
-			chip->charging_enable = 0;
-			pr_info("Stop charging by LLK_mode.\n");
-		}
-		if (chip->capacity < chip->llk_min_thr_soc) {
-			chip->charging_enable = 1;
-			pr_info("Start Charging by LLK_mode.\n");
-		}
-		if ((chip->charging_enable != prev_chg_enable)
+	} else {
+		chip->charging_enable = 1;
+		chip->iusb_enable = 1;
+	}
+
+	if ((chip->charging_enable != prev_chg_enable)
 			|| (chip->iusb_enable != prev_iusb_enable)) {
-			pr_info("lge_power_changed in LLK_mode.\n");
-			lge_power_changed(&chip->lge_sm_lpc);
-		}
+		pr_info("lge_power_changed in LLK_mode.\n");
+		lge_power_changed(&chip->lge_sm_lpc);
 	}
 }
 
@@ -90,35 +110,12 @@ static char *sm_supplied_to[] = {
 
 static void lge_sm_external_power_changed(struct lge_power *lpc)
 {
-	int rc = 0;
-
-	union power_supply_propval ret = {0,};
 	struct lge_store_mode *chip
 			= container_of(lpc,
 					struct lge_store_mode, lge_sm_lpc);
 
-	if (!chip->batt_psy)
-		chip->batt_psy = power_supply_get_by_name("battery");
-
-	if (!chip->batt_psy) {
-		pr_err("battery is not yet ready\n");
-	} else {
-#ifdef CONFIG_LGE_PM_ONLY_STORE_MODE
-		if (chip->default_set)
-			chip->store_demo_enabled = chip->default_set;
-#endif
-		if (chip->store_demo_enabled == 1) {
-			rc = chip->batt_psy->get_property(chip->batt_psy,
-					POWER_SUPPLY_PROP_CAPACITY, &ret);
-			if (rc) {
-				pr_err ("cannot get capacity!\n");
-			} else {
-				chip->capacity = ret.intval;
-				pr_info("capacity : %d\n", chip->capacity);
-				schedule_work(&chip->llk_work);
-			}
-		}
-	}
+	if (chip->store_demo_enabled)
+		schedule_work(&chip->llk_work);
 }
 
 static void lge_sm_external_lge_power_changed(struct lge_power *lpc)
@@ -136,7 +133,11 @@ static void lge_sm_external_lge_power_changed(struct lge_power *lpc)
 	} else {
 		rc = chip->lge_cd_lpc->get_property(chip->lge_cd_lpc,
 				LGE_POWER_PROP_CHG_PRESENT, &lge_val);
-		chip->chg_present = lge_val.intval;
+		if (chip->chg_present != lge_val.intval) {
+			chip->chg_present = lge_val.intval;
+			if (chip->store_demo_enabled && chip->chg_present)
+				schedule_work(&chip->llk_work);
+		}
 	}
 }
 
@@ -167,25 +168,20 @@ static int lge_power_lge_sm_set_property(struct lge_power *lpc,
 {
 	int ret_val = 0;
 	struct lge_store_mode *chip
-			= container_of(lpc,	struct lge_store_mode, lge_sm_lpc);
+			= container_of(lpc, struct lge_store_mode, lge_sm_lpc);
 
 	switch (lpp) {
 	case LGE_POWER_PROP_STORE_DEMO_ENABLED:
-		chip->store_demo_enabled = val->intval;
-#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_SIMPLE
-		if (chip->store_demo_enabled == 0)
-			chip->charging_enable = 1;
-#endif
+		if (chip->store_demo_enabled != val->intval) {
+			chip->store_demo_enabled = val->intval;
+			schedule_work(&chip->llk_work);
+		}
 		break;
-
 	default:
 		pr_info("Invalid Store demo mode property value(%d)\n", (int)lpp);
 		ret_val = -EINVAL;
 		break;
 	}
-#ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_SIMPLE
-	lge_power_changed(&chip->lge_sm_lpc);
-#endif
 	return ret_val;
 }
 
@@ -201,15 +197,12 @@ static int lge_power_lge_sm_get_property(struct lge_power *lpc,
 	case LGE_POWER_PROP_STORE_DEMO_ENABLED:
 		val->intval = chip->store_demo_enabled;
 		break;
-
 	case LGE_POWER_PROP_CHARGING_ENABLED:
 		val->intval = chip->charging_enable;
 		break;
-
 	case LGE_POWER_PROP_USB_CHARGING_ENABLED:
 		val->intval = chip->iusb_enable;
 		break;
-
 	default:
 		ret_val = -EINVAL;
 		break;
@@ -230,20 +223,12 @@ static int lge_store_mode_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	chip->iusb_enable = 1;
 	chip->charging_enable = 1;
 	chip->store_demo_enabled = 0;
 	lge_power_sm = &chip->lge_sm_lpc;
 	lge_power_sm->name = "lge_sm";
-	chip->iusb_enable = 1;
 
-#ifdef CONFIG_LGE_PM_ONLY_STORE_MODE
-	ret = of_property_read_u32(pdev->dev.of_node, "lge,default-set",
-			&chip->default_set);
-	if (ret < 0) {
-		pr_err("Failed to get default-set value\n");
-		chip->default_set = 0;
-	}
-#endif
 	ret = of_property_read_u32(pdev->dev.of_node, "lge,llk_max",
 			&chip->llk_max_thr_soc);
 	if (ret < 0) {
