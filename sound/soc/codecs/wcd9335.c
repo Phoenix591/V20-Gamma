@@ -12425,21 +12425,6 @@ static int tasha_dig_core_power_collapse(struct tasha_priv *tasha,
 		return 0;
 
 	mutex_lock(&tasha->power_lock);
-#ifdef CONFIG_MACH_LGE
-	if (req_state == POWER_COLLAPSE)
-	{
-		if (tasha->power_active_ref <= 0) {
-			dev_err(tasha->dev, "%s: No power_active_ref is existed %d\n",
-				__func__,tasha->power_active_ref);
-			goto unlock_mutex;
-		}
-		tasha->power_active_ref--;
-	}
-	else if (req_state == POWER_RESUME)
-		tasha->power_active_ref++;
-	else
-		goto unlock_mutex;
-#else //QCT original
 	if (req_state == POWER_COLLAPSE)
 		tasha->power_active_ref--;
 	else if (req_state == POWER_RESUME)
@@ -12452,7 +12437,6 @@ static int tasha_dig_core_power_collapse(struct tasha_priv *tasha,
 			__func__);
 		goto unlock_mutex;
 	}
-#endif
 
 	codec = tasha->codec;
 	if (!codec)

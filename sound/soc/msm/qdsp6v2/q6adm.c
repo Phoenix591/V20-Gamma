@@ -25,11 +25,6 @@
 #include <sound/asound.h>
 #include "msm-dts-srs-tm-config.h"
 #include <sound/adsp_err.h>
-#define LVVE
-#if defined(LVVE)
-#define VPM_TX_SM_LVVEFQ    (0x1000BFF0)
-#define VPM_TX_DM_LVVEFQ    (0x1000BFF1)
-#endif
 #ifdef CONFIG_MACH_LGE
 #define AUDIO_RX_LGE        (0x10010712)
 #endif
@@ -2444,10 +2439,6 @@ int adm_open(int port_id, int path, int rate, int channel_mode, int topology,
 	}
 
 	if ((topology == VPM_TX_SM_ECNS_COPP_TOPOLOGY) ||
-#if defined(LVVE)
-	    (topology == VPM_TX_SM_LVVEFQ ) ||
-	    (topology == VPM_TX_DM_LVVEFQ ) ||
-#endif
 	    (topology == VPM_TX_DM_FLUENCE_COPP_TOPOLOGY) ||
 	    (topology == VPM_TX_DM_RFECNS_COPP_TOPOLOGY))
 		rate = 16000;

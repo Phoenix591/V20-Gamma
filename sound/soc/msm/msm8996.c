@@ -4088,7 +4088,6 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		len_1 = ARRAY_SIZE(msm8996_common_dai_links);
 		len_2 = len_1 + ARRAY_SIZE(msm8996_tasha_fe_dai_links);
 		len_3 = len_2 + ARRAY_SIZE(msm8996_common_be_dai_links);
-		len_4 = len_3 + ARRAY_SIZE(msm8996_tasha_be_dai_links);
 
 		memcpy(msm8996_tasha_dai_links,
 		       msm8996_common_dai_links,
@@ -4102,6 +4101,10 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		memcpy(msm8996_tasha_dai_links + len_3,
 		       msm8996_tasha_be_dai_links,
 		       sizeof(msm8996_tasha_be_dai_links));
+
+		dailink = msm8996_tasha_dai_links;
+		len_4 = len_3 + ARRAY_SIZE(msm8996_tasha_be_dai_links);
+
 #if defined(CONFIG_SND_USE_QUAT_MI2S) || defined(CONFIG_SND_LGE_DSDP_DUAL_AUDIO) || defined(CONFIG_SND_USE_SEC_MI2S) || defined(CONFIG_SND_USE_TERT_MI2S)
 		memcpy(msm8996_tasha_dai_links + len_4,
 		       msm8996_lge_dai_links,
@@ -4109,7 +4112,6 @@ static struct snd_soc_card *populate_snd_card_dailinks(struct device *dev)
 		len_4 += ARRAY_SIZE(msm8996_lge_dai_links);
 #endif
 
-		dailink = msm8996_tasha_dai_links;
 	}
 
 	if (of_property_read_bool(dev->of_node, "qcom,hdmi-audio-rx")) {
