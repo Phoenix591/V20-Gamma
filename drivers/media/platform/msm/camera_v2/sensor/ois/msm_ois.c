@@ -21,7 +21,6 @@
 #ifdef CONFIG_LG_OIS
 #include "msm_ois_i2c.h"
 #include "../msm_sensor.h"
-#include <soc/qcom/lge/board_lge.h>	//to use lge_get_board_revno()
 #endif
 
 DEFINE_MSM_MUTEX(msm_ois_mutex);

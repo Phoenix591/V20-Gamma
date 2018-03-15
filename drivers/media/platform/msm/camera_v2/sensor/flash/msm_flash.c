@@ -392,10 +392,6 @@ static int32_t msm_flash_off(struct msm_flash_ctrl_t *flash_ctrl,
 		led_trigger_event(flash_ctrl->switch_trigger, 0);
 
 	CDBG("Exit\n");
-
-#ifdef CONFIG_MACH_LGE
-	pr_info("msm_flash_off done\n");
-#endif
 	return 0;
 }
 
@@ -513,7 +509,8 @@ static int32_t msm_flash_init_prepare(
 	struct msm_flash_cfg_data_t flash_data_k;
 	struct msm_flash_init_info_t flash_init_info;
 	int32_t i = 0;
-	if(!is_compat_task()) {
+
+	if (!is_compat_task()) {
 		/*for 64-bit usecase,it need copy the data to local memory*/
 		flash_data_k.cfg_type = flash_data->cfg_type;
 		for (i = 0; i < MAX_LED_TRIGGERS; i++) {
@@ -525,7 +522,7 @@ static int32_t msm_flash_init_prepare(
 
 		flash_data_k.cfg.flash_init_info = &flash_init_info;
 		if (copy_from_user(&flash_init_info,
-			(void *)(flash_data->cfg.flash_init_info),
+			(void __user *)(flash_data->cfg.flash_init_info),
 			sizeof(struct msm_flash_init_info_t))) {
 			pr_err("%s copy_from_user failed %d\n",
 				__func__, __LINE__);
@@ -553,7 +550,7 @@ static int32_t msm_flash_init_prepare(
 
 	flash_data_k.cfg.flash_init_info = &flash_init_info;
 	if (copy_from_user(&flash_init_info,
-		(void *)(flash_data->cfg.flash_init_info),
+		(void __user *)(flash_data->cfg.flash_init_info),
 		sizeof(struct msm_flash_init_info_t))) {
 		pr_err("%s copy_from_user failed %d\n",
 			__func__, __LINE__);
@@ -589,9 +586,7 @@ static int32_t msm_flash_low(
 				pr_debug("LED current clamped to %d\n",
 					curr);
 			}
-#ifdef CONFIG_MACH_LGE
-			pr_info("low_flash_current[%d] = %d\n", i, curr);
-#endif
+			CDBG("low_flash_current[%d] = %d", i, curr);
 			led_trigger_event(flash_ctrl->torch_trigger[i],
 				curr);
 		}
@@ -628,9 +623,7 @@ static int32_t msm_flash_high(
 				pr_debug("LED flash_current[%d] clamped %d\n",
 					i, curr);
 			}
-#ifdef CONFIG_MACH_LGE
-			pr_info("high_flash_current[%d] = %d\n", i, curr);
-#endif
+			CDBG("high_flash_current[%d] = %d", i, curr);
 			led_trigger_event(flash_ctrl->flash_trigger[i],
 				curr);
 		}
@@ -676,24 +669,49 @@ static int32_t msm_flash_config(struct msm_flash_ctrl_t *flash_ctrl,
 		rc = msm_flash_init_prepare(flash_ctrl, flash_data);
 		break;
 	case CFG_FLASH_RELEASE:
-		if (flash_ctrl->flash_state == MSM_CAMERA_FLASH_INIT)
+		if (flash_ctrl->flash_state != MSM_CAMERA_FLASH_RELEASE) {
 			rc = flash_ctrl->func_tbl->camera_flash_release(
 				flash_ctrl);
+		} else {
+			CDBG(pr_fmt("Invalid state : %d\n"),
+				flash_ctrl->flash_state);
+		}
 		break;
 	case CFG_FLASH_OFF:
-		if (flash_ctrl->flash_state == MSM_CAMERA_FLASH_INIT)
+		if ((flash_ctrl->flash_state != MSM_CAMERA_FLASH_RELEASE) &&
+			(flash_ctrl->flash_state != MSM_CAMERA_FLASH_OFF)) {
 			rc = flash_ctrl->func_tbl->camera_flash_off(
 				flash_ctrl, flash_data);
+			if (!rc)
+				flash_ctrl->flash_state = MSM_CAMERA_FLASH_OFF;
+		} else {
+			CDBG(pr_fmt("Invalid state : %d\n"),
+				flash_ctrl->flash_state);
+		}
 		break;
 	case CFG_FLASH_LOW:
-		if (flash_ctrl->flash_state == MSM_CAMERA_FLASH_INIT)
+		if ((flash_ctrl->flash_state == MSM_CAMERA_FLASH_OFF) ||
+			(flash_ctrl->flash_state == MSM_CAMERA_FLASH_INIT)) {
 			rc = flash_ctrl->func_tbl->camera_flash_low(
 				flash_ctrl, flash_data);
+			if (!rc)
+				flash_ctrl->flash_state = MSM_CAMERA_FLASH_LOW;
+		} else {
+			CDBG(pr_fmt("Invalid state : %d\n"),
+				flash_ctrl->flash_state);
+		}
 		break;
 	case CFG_FLASH_HIGH:
-		if (flash_ctrl->flash_state == MSM_CAMERA_FLASH_INIT)
+		if ((flash_ctrl->flash_state == MSM_CAMERA_FLASH_OFF) ||
+			(flash_ctrl->flash_state == MSM_CAMERA_FLASH_INIT)) {
 			rc = flash_ctrl->func_tbl->camera_flash_high(
 				flash_ctrl, flash_data);
+			if (!rc)
+				flash_ctrl->flash_state = MSM_CAMERA_FLASH_HIGH;
+		} else {
+			CDBG(pr_fmt("Invalid state : %d\n"),
+				flash_ctrl->flash_state);
+		}
 		break;
 	default:
 		rc = -EFAULT;
@@ -992,12 +1010,16 @@ static int32_t msm_flash_get_dt_data(struct device_node *of_node,
 	/* Read the gpio information from device tree */
 	rc = msm_sensor_driver_get_gpio_data(
 		&(fctrl->power_info.gpio_conf), of_node);
-	if (rc < 0) {
-		pr_err("%s:%d msm_sensor_driver_get_gpio_data failed rc %d\n",
-			__func__, __LINE__, rc);
+	if (-ENODEV == rc) {
+		pr_notice("No valid flash GPIOs data\n");
+		rc = 0;
+	} else if (rc < 0) {
+		pr_err("Error flash GPIOs rc %d\n", rc);
 		return rc;
 	}
 
+	if (fctrl->flash_driver_type == FLASH_DRIVER_DEFAULT)
+		fctrl->flash_driver_type = FLASH_DRIVER_GPIO;
 	CDBG("%s:%d fctrl->flash_driver_type = %d", __func__, __LINE__,
 		fctrl->flash_driver_type);
 
@@ -1066,6 +1088,9 @@ static long msm_flash_subdev_do_ioctl(
 			break;
 		}
 		break;
+	case VIDIOC_MSM_FLASH_CFG:
+		pr_err("invalid cmd 0x%x received\n", cmd);
+		return -EINVAL;
 	default:
 		return msm_flash_subdev_ioctl(sd, cmd, arg);
 	}

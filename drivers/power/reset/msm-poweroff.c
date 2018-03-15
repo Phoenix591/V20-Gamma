@@ -64,7 +64,7 @@ static void scm_disable_sdi(void);
 * There is no API from TZ to re-enable the registers.
 * So the SDI cannot be re-enabled when it already by-passed.
 */
-static int download_mode = 0;
+static int download_mode = 1;
 #else
 static const int download_mode;
 #endif
@@ -320,7 +320,8 @@ static void msm_restart_prepare(const char *cmd)
 			need_warm_reset = true;
 	} else {
 		need_warm_reset = (get_dload_mode() ||
-				(cmd != NULL && cmd[0] != '\0'));
+				((cmd != NULL && cmd[0] != '\0') &&
+				strcmp(cmd, "userrequested")));
 	}
 #endif
 
@@ -340,18 +341,10 @@ static void msm_restart_prepare(const char *cmd)
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_RECOVERY);
 			__raw_writel(0x77665502, restart_reason);
-		} else if (!strncmp(cmd, "fota", 4)) {
-			qpnp_pon_set_restart_reason(
-				PON_RESTART_REASON_FOTA);
-			__raw_writel(0x77665566, restart_reason);
 		} else if (!strcmp(cmd, "rtc")) {
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_RTC);
 			__raw_writel(0x77665503, restart_reason);
-		} else if (!strcmp(cmd, "wallpaper_fail")) {
-			qpnp_pon_set_restart_reason(
-				PON_RESTART_REASON_WALLPAPER_FAIL);
-			__raw_writel(0x77665507, restart_reason);
 		} else if (!strcmp(cmd, "dm-verity device corrupted")) {
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_DMVERITY_CORRUPTED);
@@ -364,26 +357,6 @@ static void msm_restart_prepare(const char *cmd)
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_KEYS_CLEAR);
 			__raw_writel(0x7766550a, restart_reason);
-#ifdef CONFIG_LGE_LCD_OFF_DIMMING
-		} else if (!strncmp(cmd, "FOTA LCD off", 12)) {
-			__raw_writel(0x77665560, restart_reason);
-			qpnp_pon_set_restart_reason(
-				PON_RESTART_REASON_FOTA_LCD_OFF);
-		} else if (!strncmp(cmd, "FOTA OUT LCD off", 16)) {
-			__raw_writel(0x77665561, restart_reason);
-			qpnp_pon_set_restart_reason(
-				PON_RESTART_REASON_FOTA_OUT_LCD_OFF);
-		} else if (!strncmp(cmd, "LCD off", 7)) {
-			__raw_writel(0x77665562, restart_reason);
-			qpnp_pon_set_restart_reason(
-				PON_RESTART_REASON_LCD_OFF);
-#endif
-#ifdef CONFIG_LGE_PM
-		} else if (!strncmp(cmd, "charge_reset", 12)) {
-			qpnp_pon_set_restart_reason(
-				PON_RESTART_REASON_CHARGE_RESET);
-			__raw_writel(0x776655a0, restart_reason);
-#endif
 		} else if (!strncmp(cmd, "oem-", 4)) {
 			unsigned long code;
 			int ret;
@@ -391,15 +364,6 @@ static void msm_restart_prepare(const char *cmd)
 			if (!ret)
 				__raw_writel(0x6f656d00 | (code & 0xff),
 					     restart_reason);
-#ifdef CONFIG_LGE_DEFAULT_HARD_RESET
-			if (!strncmp(cmd, "oem-90466252",12)) {
-				qpnp_pon_set_restart_reason(
-					PON_RESTART_REASON_LAF_RESTART_MODE);
-			} else if (!strncmp(cmd, "oem-02179092",12)) {
-				qpnp_pon_set_restart_reason(
-					PON_RESTART_REASON_LAF_ONRS);
-			}
-#endif
 #ifndef CONFIG_LGE_HANDLE_PANIC
 		} else if (!strncmp(cmd, "edl", 3)) {
 			enable_emergency_dload_mode();
