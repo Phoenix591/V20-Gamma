@@ -40,7 +40,7 @@
 #include <linux/configfs.h>
 #include <linux/usb/composite.h>
 
-#include "../configfs.h"
+#include "configfs.h"
 
 #define MTP_RX_BUFFER_INIT_SIZE    1048576
 #define MTP_BULK_BUFFER_SIZE       16384
@@ -628,11 +628,7 @@ static struct usb_request *mtp_request_new(struct usb_ep *ep, int buffer_size)
 		return NULL;
 
 	/* now allocate buffers for the requests */
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	req->buf = kmalloc(buffer_size, GFP_KERNEL | __GFP_NOWARN);
-#else
 	req->buf = kmalloc(buffer_size, GFP_KERNEL);
-#endif
 	if (!req->buf) {
 		usb_ep_free_request(ep, req);
 		return NULL;
@@ -2225,7 +2221,7 @@ static int debug_mtp_read_stats(struct seq_file *s, void *unused)
 	}
 
 	seq_printf(s, "vfs_write(time in usec) min:%d\t max:%d\t avg:%d\n",
-						min, max, sum / iteration);
+				min, max, (iteration ? (sum / iteration) : 0));
 	min = max = sum = iteration = 0;
 	seq_puts(s, "\n=======================\n");
 	seq_puts(s, "MTP Read Stats:\n");
@@ -2247,7 +2243,7 @@ static int debug_mtp_read_stats(struct seq_file *s, void *unused)
 	}
 
 	seq_printf(s, "vfs_read(time in usec) min:%d\t max:%d\t avg:%d\n",
-						min, max, sum / iteration);
+				min, max, (iteration ? (sum / iteration) : 0));
 	spin_unlock_irqrestore(&dev->lock, flags);
 	return 0;
 }
@@ -2255,18 +2251,27 @@ static int debug_mtp_read_stats(struct seq_file *s, void *unused)
 static ssize_t debug_mtp_reset_stats(struct file *file, const char __user *buf,
 				 size_t count, loff_t *ppos)
 {
-	int clear_stats;
+	int ret;
 	unsigned long flags;
+	u8 clear_stats;
 	struct mtp_dev *dev = _mtp_dev;
 
 	if (buf == NULL) {
 		pr_err("[%s] EINVAL\n", __func__);
-		goto done;
+		ret = -EINVAL;
+		return ret;
 	}
 
-	if (sscanf(buf, "%u", &clear_stats) != 1 || clear_stats != 0) {
+	ret = kstrtou8_from_user(buf, count, 0, &clear_stats);
+	if (ret < 0) {
+		pr_err("can't get enter value.\n");
+		return ret;
+	}
+
+	if (clear_stats != 0) {
 		pr_err("Wrong value. To clear stats, enter value as 0.\n");
-		goto done;
+		ret = -EINVAL;
+		return ret;
 	}
 
 	spin_lock_irqsave(&dev->lock, flags);
@@ -2274,7 +2279,7 @@ static ssize_t debug_mtp_reset_stats(struct file *file, const char __user *buf,
 	dev->dbg_read_index = 0;
 	dev->dbg_write_index = 0;
 	spin_unlock_irqrestore(&dev->lock, flags);
-done:
+
 	return count;
 }
 

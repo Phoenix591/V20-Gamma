@@ -56,7 +56,7 @@
 #include "u_fs.h"
 #include "u_ecm.h"
 #include "u_ncm.h"
-#if defined(CONFIG_SND_RAWMIDI) || defined(CONFIG_LGE_USB_G_ANDROID)
+#ifdef CONFIG_SND_RAWMIDI
 #include "f_midi.c"
 #endif
 #include "f_diag.c"
@@ -114,22 +114,12 @@ static const char longname[] = "Gadget Android";
 #define VENDOR_ID		0x18D1
 #define PRODUCT_ID		0x0001
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
-/* f_midi configuration */
-#define MIDI_INPUT_PORTS    1
-#define MIDI_OUTPUT_PORTS   1
-#define MIDI_BUFFER_SIZE    1024
-#define MIDI_QUEUE_LENGTH   32
-#endif
-
 #define ANDROID_DEVICE_NODE_NAME_LENGTH 11
-#if 0 /* qcom original */
 /* f_midi configuration */
 #define MIDI_INPUT_PORTS    1
 #define MIDI_OUTPUT_PORTS   1
 #define MIDI_BUFFER_SIZE    1024
 #define MIDI_QUEUE_LENGTH   32
-#endif
 
 struct android_usb_function {
 	char *name;
@@ -259,9 +249,6 @@ struct android_dev {
 #ifdef CONFIG_LGE_USB_FACTORY
 	bool check_pif;
 	bool check_qem;
-#endif
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	bool ffs_binding_fail;
 #endif
 };
 
@@ -741,9 +728,6 @@ static int android_enable(struct android_dev *dev)
 	if (WARN_ON(!dev->disable_depth))
 		return err;
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	pr_info("%s: checked disable_depth(%d)\n", __func__, dev->disable_depth);
-#endif
 	if (--dev->disable_depth == 0) {
 
 		list_for_each_entry(conf, &dev->configs, list_item) {
@@ -752,10 +736,6 @@ static int android_enable(struct android_dev *dev)
 			if (err < 0) {
 				pr_err("%s: usb_add_config failed : err: %d\n",
 						__func__, err);
-#ifdef CONFIG_LGE_USB_G_ANDROID
-				dev->disable_depth++;
-				dev->ffs_binding_fail = true;
-#endif
 				return err;
 			}
 		}
@@ -805,9 +785,6 @@ static void android_disable(struct android_dev *dev)
 	}
 #endif
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	pr_info("%s: checked disable_depth(%d)\n", __func__, dev->disable_depth);
-#endif
 	if (dev->disable_depth++ == 0) {
 
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
@@ -909,10 +886,6 @@ static void ffs_function_enable(struct android_usb_function *f)
 
 	config->enabled = true;
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	pr_info("%s: config->opened(%d)\n", __func__, config->opened);
-#endif
-
 	/* Disable the gadget until the function is ready */
 	if (!config->opened)
 		android_disable(dev);
@@ -929,10 +902,6 @@ static void ffs_function_disable(struct android_usb_function *f)
 #endif
 
 	config->enabled = false;
-
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	pr_info("%s: config->opened(%d)\n", __func__, config->opened);
-#endif
 
 	/* Balance the disable that was called in closed_callback */
 	if (!config->opened)
@@ -955,10 +924,8 @@ static int ffs_function_bind_config(struct android_usb_function *f,
 		pr_err("%s(): usb_add_function() fails (err:%d) for ffs\n",
 							__func__, ret);
 
-#ifndef CONFIG_LGE_USB_G_ANDROID
 		usb_put_function(config->func);
 		config->func = NULL;
-#endif
 	}
 
 	return ret;
@@ -1035,27 +1002,11 @@ static int functionfs_ready_callback(struct ffs_data *ffs)
 
 	mutex_lock(&dev->mutex);
 #endif
-
-#ifdef CONFIG_LGE_USB_G_ANDROID
-        pr_info("%s: config->enabled(%d), dev(%p)\n", __func__, config->enabled, dev);
-#endif
-
 	config->data = ffs;
 	config->opened = true;
 
 	if (config->enabled && dev)
 		android_enable(dev);
-
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	if (dev) {
-		if (dev->ffs_binding_fail) {
-			dev->ffs_binding_fail = false;
-			dev->connected = 1;
-			android_enable(dev);
-			dev->enabled = true;
-		}
-	}
-#endif
 
 #ifdef CONFIG_LGE_USB_FACTORY
 	if (dev)
@@ -1074,10 +1025,6 @@ static void functionfs_closed_callback(struct ffs_data *ffs)
 
 	if (dev)
 		mutex_lock(&dev->mutex);
-
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	pr_info("%s: config->enabled(%d), dev(%p)\n", __func__, config->enabled, dev);
-#endif
 
 	if (config->enabled && dev)
 		android_disable(dev);
@@ -1215,11 +1162,7 @@ acm_function_bind_config(struct android_usb_function *f,
 	static int acm_initialized, ports;
 	struct acm_function_config *config = f->config;
 
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	if (acm_initialized && ports)
-#else
 	if (acm_initialized)
-#endif
 		goto bind_config;
 
 	acm_initialized = 1;
@@ -1326,9 +1269,6 @@ static struct android_usb_function acm_function = {
 /*rmnet transport string format(per port):"ctrl0,data0,ctrl1,data1..." */
 #define MAX_XPORT_STR_LEN 50
 static char rmnet_transports[MAX_XPORT_STR_LEN];
-#ifdef CONFIG_LGE_USB_G_ANDROID
-static char* rmnet_trans = "qti,bam2bam_ipa";
-#endif
 
 /*rmnet transport name string - "rmnet_hsic[,rmnet_hsusb]" */
 static char rmnet_xport_names[MAX_XPORT_STR_LEN];
@@ -1366,11 +1306,6 @@ static int rmnet_function_bind_config(struct android_usb_function *f,
 	static int rmnet_initialized, ports;
 
 	if (!rmnet_initialized) {
-#ifdef CONFIG_LGE_USB_G_ANDROID
-		if(strcmp(rmnet_transports, rmnet_trans))
-			strlcpy(buf, rmnet_trans, sizeof(buf));
-		else
-#endif
 		strlcpy(buf, rmnet_transports, sizeof(buf));
 		b = strim(buf);
 
@@ -1477,6 +1412,32 @@ static struct android_usb_function rmnet_function = {
 	.attributes	= rmnet_function_attributes,
 };
 
+static char gps_transport[MAX_XPORT_STR_LEN];
+
+static ssize_t gps_transport_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%s\n", gps_transport);
+}
+
+static ssize_t gps_transport_store(
+		struct device *device, struct device_attribute *attr,
+		const char *buff, size_t size)
+{
+	strlcpy(gps_transport, buff, sizeof(gps_transport));
+
+	return size;
+}
+
+static struct device_attribute dev_attr_gps_transport =
+					__ATTR(transport, S_IRUGO | S_IWUSR,
+							gps_transport_show,
+							gps_transport_store);
+
+static struct device_attribute *gps_function_attrbitutes[] = {
+					&dev_attr_gps_transport,
+					NULL };
+
 static void gps_function_cleanup(struct android_usb_function *f)
 {
 	gps_cleanup();
@@ -1487,10 +1448,13 @@ static int gps_function_bind_config(struct android_usb_function *f,
 {
 	int err;
 	static int gps_initialized;
+	char buf[MAX_XPORT_STR_LEN], *b;
 
 	if (!gps_initialized) {
+		strlcpy(buf, gps_transport, sizeof(buf));
+		b = strim(buf);
 		gps_initialized = 1;
-		err = gps_init_port();
+		err = gps_init_port(b);
 		if (err) {
 			pr_err("gps: Cannot init gps port");
 			return err;
@@ -1515,6 +1479,7 @@ static struct android_usb_function gps_function = {
 	.name		= "gps",
 	.cleanup	= gps_function_cleanup,
 	.bind_config	= gps_function_bind_config,
+	.attributes	= gps_function_attrbitutes,
 };
 
 /* ncm */
@@ -3697,7 +3662,7 @@ static struct android_usb_function audio_source_function = {
 	.bind_config	= audio_source_function_bind_config,
 };
 
-#if defined(CONFIG_SND_RAWMIDI) || defined(CONFIG_LGE_USB_G_ANDROID)
+#ifdef CONFIG_SND_RAWMIDI
 static int midi_function_init(struct android_usb_function *f,
 					struct usb_composite_dev *cdev)
 {
@@ -4036,7 +4001,7 @@ static struct android_usb_function *default_functions[] = {
 	&accessory_function,
 	&audio_source_function,
 	&charger_function,
-#if defined(CONFIG_SND_RAWMIDI) || defined(CONFIG_LGE_USB_G_ANDROID)
+#ifdef CONFIG_SND_RAWMIDI
 	&midi_function,
 #endif
 #ifdef CONFIG_LGE_USB_MAXIM_EVP
@@ -4339,10 +4304,6 @@ functions_store(struct device *pdev, struct device_attribute *attr,
 		mutex_unlock(&dev->mutex);
 		return -EBUSY;
 	}
-
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	dev_info(dev->dev, "LGE-USB request function list: %s\n", buff);
-#endif
 #ifdef CONFIG_LGE_USB_FACTORY
 	if (dev->check_pif) {
 		pr_info("%s: pif cable is plugged, not permitted\n", __func__);
@@ -4458,10 +4419,6 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 		return -ENODEV;
 
 	mutex_lock(&dev->mutex);
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	dev_info(dev->dev, "gadget enable(%s)\n", buff);
-#endif
-
 #ifdef CONFIG_LGE_USB_FACTORY
 	if (sscanf(buff, "%d", &enabled) != 1)
 		return -EINVAL;
@@ -5303,9 +5260,6 @@ static struct android_configuration *alloc_android_config
 	conf->usb_config.label = dev->name;
 	conf->usb_config.unbind = android_unbind_config;
 	conf->usb_config.bConfigurationValue = dev->configs_num;
-#ifdef CONFIG_LGE_USB_G_ANDROID
-	conf->usb_config.bmAttributes |= USB_CONFIG_ATT_SELFPOWER;
-#endif
 
 	INIT_LIST_HEAD(&conf->enabled_functions);
 

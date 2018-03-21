@@ -339,9 +339,14 @@ struct msm_otg_platform_data {
 #define PHY_CHARGER_CONNECTED		BIT(3)
 #define PHY_VBUS_VALID_OVERRIDE		BIT(4)
 #define DEVICE_IN_SS_MODE		BIT(5)
+#define PHY_LANE_A			BIT(6)
+#define PHY_LANE_B			BIT(7)
+#define PHY_HSFS_MODE			BIT(8)
+#define PHY_LS_MODE			BIT(9)
 #ifdef CONFIG_LGE_USB_G_ANDROID
-#define PHY_OTG_MODE			BIT(6)
+#define PHY_OTG_MODE			BIT(10)
 #endif
+
 #define USB_NUM_BUS_CLOCKS      3
 
 /**
