@@ -10,9 +10,6 @@
  * GNU General Public License for more details.
  */
 
-#ifdef CONFIG_LGE_PM
-#define DEBUG
-#endif
 #include <linux/spinlock.h>
 #include <linux/errno.h>
 #include <linux/bitops.h>

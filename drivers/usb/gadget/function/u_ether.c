@@ -71,6 +71,11 @@ module_param(min_cpu_freq, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(min_cpu_freq,
 	"to set minimum cpu frquency to when ethernet ifc is active");
 
+static unsigned int skb_timestamp_enable;
+module_param(skb_timestamp_enable, uint, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(skb_timestamp_enable,
+	"to enable timestamping for TX and RX packets");
+
 /* this refers to max number sgs per transfer
  * which includes headers/data packets
  */
@@ -663,36 +668,12 @@ static void process_rx_w(struct work_struct *work)
 				|| ETH_HLEN > skb->len
 				|| (skb->len > ETH_FRAME_LEN &&
 				test_bit(RMNET_MODE_LLP_ETH, &dev->flags))) {
-#ifdef CONFIG_LGE_USB_G_NCM
-		/*
-		  Need to revisit net->mtu	does not include header size incase of changed MTU
-		*/
-			if(!strcmp(dev->port_usb->func.name,"ncm")) {
-				if (status < 0
-					|| ETH_HLEN > skb->len
-					|| skb->len > (dev->net->mtu + ETH_HLEN)) {
-					printk(KERN_ERR "usb: %s  drop incase of NCM rx length %d\n",__func__,skb->len);
-				} else {
-					printk(KERN_ERR "usb: %s  Dont drop incase of NCM rx length %d\n",__func__,skb->len);
-					goto process_frame;
-				}
-			}
-#endif
 			dev->net->stats.rx_errors++;
 			dev->net->stats.rx_length_errors++;
-#ifndef CONFIG_LGE_USB_G_NCM
-			DBG(dev, "rx length %d\n", skb->len);
-#else
-			printk(KERN_DEBUG "usb: %s Drop rx length %d\n",__func__,skb->len);
-#endif
-
 			DBG(dev, "rx length %d\n", skb->len);
 			dev_kfree_skb_any(skb);
 			continue;
 		}
-#ifdef CONFIG_LGE_USB_G_NCM
-process_frame:
-#endif
 		if (test_bit(RMNET_MODE_LLP_IP, &dev->flags))
 			skb->protocol = ether_ip_type_trans(skb, dev->net);
 		else
@@ -701,6 +682,8 @@ process_frame:
 		dev->net->stats.rx_packets++;
 		dev->net->stats.rx_bytes += skb->len;
 
+		if (skb_timestamp_enable)
+			skb->tstamp = ktime_get();
 		status = netif_rx_ni(skb);
 	}
 	set_wake_up_idle(false);
@@ -750,9 +733,6 @@ static void tx_complete(struct usb_ep *ep, struct usb_request *req)
 	default:
 		dev->net->stats.tx_errors++;
 		VDBG(dev, "tx err %d\n", req->status);
-#ifdef CONFIG_LGE_USB_G_NCM
-		printk(KERN_ERR"usb:%s tx err %d\n",__func__, req->status);
-#endif
 		/* FALLTHROUGH */
 	case -ECONNRESET:		/* unlink */
 	case -ESHUTDOWN:		/* disconnect etc */
@@ -1091,13 +1071,14 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 	int			extra_alloc = 0;
 	int			retval;
 	struct usb_request	*req = NULL;
-	struct sk_buff		*new_skb;
+	struct sk_buff		*new_skb, *clone = NULL;
 	unsigned long		flags;
 	struct usb_ep		*in = NULL;
 	u16			cdc_filter = 0;
 	bool			multi_pkt_xfer = false;
 	u32			fixed_in_len;
 	bool			is_fixed;
+	struct skb_shared_hwtstamps hwtstamps;
 
 	spin_lock_irqsave(&dev->lock, flags);
 	if (dev->port_usb) {
@@ -1309,6 +1290,16 @@ static netdev_tx_t eth_start_xmit(struct sk_buff *skb,
 		spin_unlock_irqrestore(&dev->req_lock, flags);
 	} else {
 		req->no_interrupt = 0;
+	}
+
+	if (skb_timestamp_enable) {
+		skb->tstamp = ktime_get();
+		clone = skb_clone_sk(skb);
+		if (clone) {
+			memset(&hwtstamps, 0,
+					sizeof(struct skb_shared_hwtstamps));
+			skb_complete_tx_timestamp(clone, &hwtstamps);
+		}
 	}
 
 	retval = usb_ep_queue(in, req, GFP_ATOMIC);
