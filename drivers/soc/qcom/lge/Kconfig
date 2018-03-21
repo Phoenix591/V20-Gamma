@@ -10,7 +10,6 @@ config MACH_MSM8996_H1
 	bool "MSM8996 H1"
 	depends on ARCH_MSM8996
 	select MACH_LGE
-	select LGE_DDR_SECTION_SIZE_CHANGE
 	help
 	  Support for the Qualcomm MSM8996 H1 device.
 
@@ -165,7 +164,6 @@ config MACH_MSM8996_ELSA
 	bool "MSM8996 ELSA"
 	depends on ARCH_MSM8996
 	select MACH_LGE
-	select LGE_DDR_SECTION_SIZE_CHANGE
 	help
 	  Support for the Qualcomm MSM8996 ELSA device.
 
@@ -292,7 +290,6 @@ config MACH_MSM8996_LUCYE
 	bool "MSM8996 LUCYE"
 	depends on ARCH_MSM8996
 	select MACH_LGE
-	select LGE_DDR_SECTION_SIZE_CHANGE
 	help
 	  Support for the Qualcomm MSM8996 LUCYE device.
 
