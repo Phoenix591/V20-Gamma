@@ -15,7 +15,7 @@
 bool schedtune_initialized = false;
 #endif
 
-int sysctl_sched_cfs_boost __read_mostly;
+unsigned int sysctl_sched_cfs_boost __read_mostly;
 
 extern struct reciprocal_value schedtune_spc_rdiv;
 extern struct target_nrg schedtune_target_nrg;
@@ -237,20 +237,18 @@ struct boost_groups {
 };
 
 /* Boost groups affecting each CPU in the system */
-static DEFINE_PER_CPU(struct boost_groups, cpu_boost_groups);
+DEFINE_PER_CPU(struct boost_groups, cpu_boost_groups);
 
 static void
 schedtune_cpu_update(int cpu)
 {
 	struct boost_groups *bg;
-	int boost_max;
+	int boost_max = INT_MIN;
 	int idx;
 
 	bg = &per_cpu(cpu_boost_groups, cpu);
 
-	/* The root boost group is always active */
-	boost_max = bg->group[0].boost;
-	for (idx = 1; idx < BOOSTGROUPS_COUNT; ++idx) {
+	for (idx = 0; idx < BOOSTGROUPS_COUNT; ++idx) {
 		/*
 		 * A boost group affects a CPU only if it has
 		 * RUNNABLE tasks on that CPU
@@ -260,10 +258,10 @@ schedtune_cpu_update(int cpu)
 
 		boost_max = max(boost_max, bg->group[idx].boost);
 	}
-	/* Ensures boost_max is non-negative when all cgroup boost values
-	 * are neagtive. Avoids under-accounting of cpu capacity which may cause
-	 * task stacking and frequency spikes.*/
-	boost_max = max(boost_max, 0);
+
+	/* If there are no active boost groups on the CPU, set no boost  */
+	if (boost_max == INT_MIN)
+		boost_max = 0;
 	bg->boost_max = boost_max;
 }
 
@@ -322,12 +320,13 @@ schedtune_tasks_update(struct task_struct *p, int cpu, int idx, int task_count)
 	/* Update boosted tasks count while avoiding to make it negative */
 	bg->group[idx].tasks = max(0, tasks);
 
-	trace_sched_tune_tasks_update(p, cpu, tasks, idx,
-			bg->group[idx].boost, bg->boost_max);
-
 	/* Boost group activation or deactivation on that RQ */
 	if (tasks == 1 || tasks == 0)
 		schedtune_cpu_update(cpu);
+
+	trace_sched_tune_tasks_update(p, cpu, tasks, idx,
+			bg->group[idx].boost, bg->boost_max);
+
 }
 
 /*
@@ -651,7 +650,6 @@ schedtune_boostgroup_init(struct schedtune *st)
 		bg = &per_cpu(cpu_boost_groups, cpu);
 		bg->group[st->idx].boost = 0;
 		bg->group[st->idx].tasks = 0;
-		raw_spin_lock_init(&bg->lock);
 	}
 
 	return 0;
@@ -958,4 +956,3 @@ nodata:
 	return -EINVAL;
 }
 postcore_initcall(schedtune_init);
-

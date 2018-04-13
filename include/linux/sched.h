@@ -557,7 +557,18 @@ struct task_cputime {
  * We include PREEMPT_ACTIVE to avoid cond_resched() from working
  * before the scheduler is active -- see should_resched().
  */
-#define INIT_PREEMPT_COUNT	(PREEMPT_DISABLED + PREEMPT_ACTIVE)
+#define INIT_PREEMPT_COUNT	PREEMPT_OFFSET
+
+/*
+ * Initial preempt_count value; reflects the preempt_count schedule invariant
+ * which states that during context switches:
+ *
+ *    preempt_count() == 2*PREEMPT_DISABLE_OFFSET
+ *
+ * Note: PREEMPT_DISABLE_OFFSET is 0 for !PREEMPT_COUNT kernels.
+ * Note: See finish_task_switch().
+ */
+#define FORK_PREEMPT_COUNT	(2*PREEMPT_DISABLE_OFFSET + PREEMPT_ENABLED)
 
 /**
  * struct thread_group_cputimer - thread group interval timer counts
@@ -1144,32 +1155,6 @@ typedef int (*sched_domain_flags_f)(void);
 typedef
 const struct sched_group_energy * const(*sched_domain_energy_f)(int cpu);
 
-struct energy_env {
-	struct sched_group	*sg_top;
-	struct sched_group	*sg_cap;
-	struct sched_group 	*sg;
-
-	int			src_cpu;
-	int			dst_cpu;
-	int			util_delta;
-	struct task_struct	*task;
-
-	int			cap_idx;
-	int			payoff;
-
-	int nrg_delta;
-	int prf_delta;
-	struct {
-		unsigned int energy;
-		unsigned int capacity;
-		unsigned int utilization;
-
-		int speedup_idx;
-		int delay_idx;
-		int perf_idx;
-	} before, after;
-};
-
 #define SDTL_OVERLAP	0x01
 
 struct sd_data {
@@ -1189,8 +1174,6 @@ struct sched_domain_topology_level {
 	char                *name;
 #endif
 };
-
-extern struct sched_domain_topology_level *sched_domain_topology;
 
 extern void set_sched_topology(struct sched_domain_topology_level *tl);
 extern void wake_up_if_idle(int cpu);
@@ -1395,6 +1378,12 @@ struct sched_rt_entity {
 	unsigned long timeout;
 	unsigned long watchdog_stamp;
 	unsigned int time_slice;
+	unsigned short on_rq;
+	unsigned short on_list;
+
+	/* Accesses for these must be guarded by rq->lock of the task's rq */
+	bool schedtune_enqueued;
+	struct hrtimer schedtune_timer;
 
 	struct sched_rt_entity *back;
 #ifdef CONFIG_RT_GROUP_SCHED
@@ -1568,13 +1557,15 @@ struct task_struct {
 	/* Used for emulating ABI behavior of previous Linux versions */
 	unsigned int personality;
 
-	unsigned in_execve:1;	/* Tell the LSMs that the process is doing an
-				 * execve */
-	unsigned in_iowait:1;
-
-	/* Revert to default priority/policy when forking */
+	/* scheduler bits, serialized by scheduler locks */
 	unsigned sched_reset_on_fork:1;
 	unsigned sched_contributes_to_load:1;
+	unsigned sched_migrated:1;
+	unsigned :0; /* force alignment to the next boundary */
+
+	/* unserialized, strictly 'current' */
+	unsigned in_execve:1; /* bit to tell LSMs we're in execve */
+	unsigned in_iowait:1;
 
 	unsigned long atomic_flags; /* Flags needing atomic access. */
 
@@ -1880,8 +1871,11 @@ struct task_struct {
 	 * time slack values; these are used to round up poll() and
 	 * select() etc timeout values. These are in nanoseconds.
 	 */
-	unsigned long timer_slack_ns;
-	unsigned long default_timer_slack_ns;
+	u64 timer_slack_ns;
+	u64 default_timer_slack_ns;
+
+	/* Time that the task woke up or was last descheduled */
+	u64 waiting_time;
 
 #ifdef CONFIG_KASAN
 	unsigned int kasan_depth;

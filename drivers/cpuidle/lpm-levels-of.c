@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -39,6 +39,7 @@ static const struct lpm_type_str lpm_types[] = {
 };
 
 static DEFINE_PER_CPU(uint32_t *, max_residency);
+static DEFINE_PER_CPU(uint32_t *, min_residency);
 static struct lpm_level_avail *cpu_level_available[NR_CPUS];
 static struct platform_device *lpm_pdev;
 
@@ -75,7 +76,8 @@ static void set_optimum_cpu_residency(struct lpm_cpu *cpu, int cpu_id,
 {
 	int i, j;
 	bool mode_avail;
-	uint32_t *residency = per_cpu(max_residency, cpu_id);
+	uint32_t *maximum_residency = per_cpu(max_residency, cpu_id);
+	uint32_t *minimum_residency = per_cpu(min_residency, cpu_id);
 
 	for (i = 0; i < cpu->nlevels; i++) {
 		struct power_params *pwr = &cpu->levels[i].pwr;
@@ -84,19 +86,28 @@ static void set_optimum_cpu_residency(struct lpm_cpu *cpu, int cpu_id,
 			lpm_cpu_mode_allow(cpu_id, i, true);
 
 		if (!mode_avail) {
-			residency[i] = 0;
+			maximum_residency[i] = 0;
+			minimum_residency[i] = 0;
 			continue;
 		}
 
-		residency[i] = ~0;
+		maximum_residency[i] = ~0;
 		for (j = i + 1; j < cpu->nlevels; j++) {
 			mode_avail = probe_time ||
 					lpm_cpu_mode_allow(cpu_id, j, true);
 
 			if (mode_avail &&
-				(residency[i] > pwr->residencies[j]) &&
+				(maximum_residency[i] > pwr->residencies[j]) &&
 				(pwr->residencies[j] != 0))
-				residency[i] = pwr->residencies[j];
+				maximum_residency[i] = pwr->residencies[j];
+		}
+
+		minimum_residency[i] = pwr->time_overhead_us;
+		for (j = i-1; j >= 0; j--) {
+			if (probe_time || lpm_cpu_mode_allow(cpu_id, j, true)) {
+				minimum_residency[i] = maximum_residency[j] + 1;
+				break;
+			}
 		}
 	}
 }
@@ -116,6 +127,7 @@ static void set_optimum_cluster_residency(struct lpm_cluster *cluster,
 
 		if (!mode_avail) {
 			pwr->max_residency = 0;
+			pwr->min_residency = 0;
 			continue;
 		}
 
@@ -129,6 +141,16 @@ static void set_optimum_cluster_residency(struct lpm_cluster *cluster,
 				(pwr->residencies[j] != 0))
 				pwr->max_residency = pwr->residencies[j];
 		}
+
+		pwr->min_residency = pwr->time_overhead_us;
+		for (j = i-1;  j >= 0; j--) {
+			if (probe_time ||
+				lpm_cluster_mode_allow(cluster, j, true)) {
+				pwr->min_residency =
+				  cluster->levels[j].pwr.max_residency + 1;
+				break;
+			}
+		}
 	}
 }
 
@@ -137,6 +159,10 @@ uint32_t *get_per_cpu_max_residency(int cpu)
 	return per_cpu(max_residency, cpu);
 }
 
+uint32_t *get_per_cpu_min_residency(int cpu)
+{
+	return per_cpu(min_residency, cpu);
+}
 ssize_t lpm_enable_show(struct kobject *kobj, struct kobj_attribute *attr,
 				char *buf)
 {
@@ -161,6 +187,8 @@ ssize_t lpm_enable_store(struct kobject *kobj, struct kobj_attribute *attr,
 	struct lpm_level_avail *avail;
 
 	avail = get_avail_ptr(kobj, attr);
+	if (WARN_ON(!avail))
+		return -EINVAL;
 	kp.arg = get_enabled_ptr(attr, avail);
 	ret = param_set_bool(buf, &kp);
 
@@ -884,6 +912,7 @@ struct lpm_cluster *parse_cluster(struct device_node *node,
 			continue;
 		key = "qcom,pm-cluster-level";
 		if (!of_node_cmp(n->name, key)) {
+			WARN_ON(!use_psci && c->no_saw_devices);
 			if (parse_cluster_level(n, c))
 				goto failed_parse_cluster;
 			continue;
@@ -893,10 +922,7 @@ struct lpm_cluster *parse_cluster(struct device_node *node,
 		if (!of_node_cmp(n->name, key)) {
 			struct lpm_cluster *child;
 
-			if (c->no_saw_devices)
-				pr_info("%s: SAW device not provided.\n",
-					__func__);
-
+			WARN_ON(!use_psci && c->no_saw_devices);
 			child = parse_cluster(n, c);
 			if (!child)
 				goto failed_parse_cluster;
@@ -929,6 +955,12 @@ struct lpm_cluster *parse_cluster(struct device_node *node,
 					sizeof(uint32_t) * c->cpu->nlevels,
 					GFP_KERNEL);
 				if (!per_cpu(max_residency, i))
+					return ERR_PTR(-ENOMEM);
+				per_cpu(min_residency, i) = devm_kzalloc(
+					&lpm_pdev->dev,
+					sizeof(uint32_t) * c->cpu->nlevels,
+					GFP_KERNEL);
+				if (!per_cpu(min_residency, i))
 					return ERR_PTR(-ENOMEM);
 				set_optimum_cpu_residency(c->cpu, i, true);
 			}

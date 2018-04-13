@@ -186,6 +186,26 @@ out:
 }
 
 /*
+ * cpudl_set_freecpu - Set the cpudl.free_cpus
+ * @cp: the cpudl max-heap context
+ * @cpu: rd attached cpu
+ */
+void cpudl_set_freecpu(struct cpudl *cp, int cpu)
+{
+	cpumask_set_cpu(cpu, cp->free_cpus);
+}
+
+/*
+ * cpudl_clear_freecpu - Clear the cpudl.free_cpus
+ * @cp: the cpudl max-heap context
+ * @cpu: rd attached cpu
+ */
+void cpudl_clear_freecpu(struct cpudl *cp, int cpu)
+{
+	cpumask_clear_cpu(cpu, cp->free_cpus);
+}
+
+/*
  * cpudl_init - initialize the cpudl structure
  * @cp: the cpudl max-heap context
  */

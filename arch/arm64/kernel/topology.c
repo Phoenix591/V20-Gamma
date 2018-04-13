@@ -25,14 +25,21 @@
 #include <asm/cputype.h>
 #include <asm/topology.h>
 
+static DEFINE_PER_CPU(unsigned long, cpu_efficiency) = SCHED_CAPACITY_SCALE;
+
+unsigned long arch_get_cpu_efficiency(int cpu)
+{
+	return per_cpu(cpu_efficiency, cpu);
+}
+
 static DEFINE_PER_CPU(unsigned long, cpu_scale) = SCHED_CAPACITY_SCALE;
 
 unsigned long scale_cpu_capacity(struct sched_domain *sd, int cpu)
 {
 #ifdef CONFIG_CPU_FREQ
-	unsigned long max_cap_scale = cpufreq_scale_max_freq_capacity(cpu);
+	unsigned long max_freq_scale = cpufreq_scale_max_freq_capacity(cpu);
 
-	return per_cpu(cpu_scale, cpu) * max_cap_scale >> SCHED_CAPACITY_SHIFT;
+	return per_cpu(cpu_scale, cpu) * max_freq_scale >> SCHED_CAPACITY_SHIFT;
 #else
 	return per_cpu(cpu_scale, cpu);
 #endif
@@ -186,6 +193,7 @@ static int __init parse_dt_topology(void)
 	struct device_node *cn, *map;
 	int ret = 0;
 	int cpu;
+	u32 efficiency;
 
 	cn = of_find_node_by_path("/cpus");
 	if (!cn) {
@@ -209,9 +217,18 @@ static int __init parse_dt_topology(void)
 	 * Check that all cores are in the topology; the SMP code will
 	 * only mark cores described in the DT as possible.
 	 */
-	for_each_possible_cpu(cpu)
+	for_each_possible_cpu(cpu) {
 		if (cpu_topology[cpu].cluster_id == -1)
 			ret = -EINVAL;
+
+		/* The CPU efficiency value passed from the device tree */
+		cn = of_get_cpu_node(cpu, NULL);
+		if (of_property_read_u32(cn, "efficiency", &efficiency) < 0) {
+			WARN_ON(1);
+			continue;
+		}
+		per_cpu(cpu_efficiency, cpu) = efficiency;
+	}
 
 out_map:
 	of_node_put(map);
@@ -258,6 +275,11 @@ const struct cpumask *cpu_coregroup_mask(int cpu)
 	return &cpu_topology[cpu].core_sibling;
 }
 
+static int cpu_cpu_flags(void)
+{
+	return SD_ASYM_CPUCAPACITY;
+}
+
 static inline int cpu_corepower_flags(void)
 {
 	return SD_SHARE_PKG_RESOURCES  | SD_SHARE_POWERDOMAIN | \
@@ -268,7 +290,7 @@ static struct sched_domain_topology_level arm64_topology[] = {
 #ifdef CONFIG_SCHED_MC
 	{ cpu_coregroup_mask, cpu_corepower_flags, cpu_core_energy, SD_INIT_NAME(MC) },
 #endif
-	{ cpu_cpu_mask, NULL, cpu_cluster_energy, SD_INIT_NAME(DIE) },
+	{ cpu_cpu_mask, cpu_cpu_flags, cpu_cluster_energy, SD_INIT_NAME(DIE) },
 	{ NULL, },
 };
 
@@ -331,12 +353,15 @@ void store_cpu_topology(unsigned int cpuid)
 		/* Multiprocessor system : Multi-threads per core */
 		cpuid_topo->thread_id  = MPIDR_AFFINITY_LEVEL(mpidr, 0);
 		cpuid_topo->core_id    = MPIDR_AFFINITY_LEVEL(mpidr, 1);
-		cpuid_topo->cluster_id = MPIDR_AFFINITY_LEVEL(mpidr, 2);
+		cpuid_topo->cluster_id = MPIDR_AFFINITY_LEVEL(mpidr, 2) |
+					 MPIDR_AFFINITY_LEVEL(mpidr, 3) << 8;
 	} else {
 		/* Multiprocessor system : Single-thread per core */
 		cpuid_topo->thread_id  = -1;
 		cpuid_topo->core_id    = MPIDR_AFFINITY_LEVEL(mpidr, 0);
-		cpuid_topo->cluster_id = MPIDR_AFFINITY_LEVEL(mpidr, 1);
+		cpuid_topo->cluster_id = MPIDR_AFFINITY_LEVEL(mpidr, 1) |
+					 MPIDR_AFFINITY_LEVEL(mpidr, 2) << 8 |
+					 MPIDR_AFFINITY_LEVEL(mpidr, 3) << 16;
 	}
 
 	pr_debug("CPU%u: cluster %d core %d thread %d mpidr %#016llx\n",
@@ -374,7 +399,7 @@ void __init init_cpu_topology(void)
 	 * Discard anything that was parsed if we hit an error so we
 	 * don't use partial information.
 	 */
-	if (parse_dt_topology())
+	if (of_have_populated_dt() && parse_dt_topology())
 		reset_cpu_topology();
 	else
 		set_sched_topology(arm64_topology);

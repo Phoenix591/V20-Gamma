@@ -44,7 +44,7 @@ static DEFINE_PER_CPU(unsigned long, cpu_scale);
 
 unsigned long scale_cpu_capacity(struct sched_domain *sd, int cpu)
 {
-#if CONFIG_CPU_FREQ
+#ifdef CONFIG_CPU_FREQ
 	unsigned long max_freq_scale = cpufreq_scale_max_freq_capacity(cpu);
 
 	return per_cpu(cpu_scale, cpu) * max_freq_scale >> SCHED_CAPACITY_SHIFT;
@@ -247,6 +247,9 @@ static int __init parse_dt_topology(void)
 	unsigned long capacity = 0;
 	int cpu = 0, ret = 0;
 
+	__cpu_capacity = kcalloc(nr_cpu_ids, sizeof(*__cpu_capacity),
+				 GFP_NOWAIT);
+
 	cn = of_find_node_by_path("/cpus");
 	if (!cn) {
 		pr_err("No CPU information found in DT\n");
@@ -272,9 +275,6 @@ static int __init parse_dt_topology(void)
 	for_each_possible_cpu(cpu)
 		if (cpu_topology[cpu].cluster_id == -1)
 			ret = -EINVAL;
-
-	__cpu_capacity = kcalloc(nr_cpu_ids, sizeof(*__cpu_capacity),
-				 GFP_NOWAIT);
 
 	for_each_possible_cpu(cpu) {
 		const u32 *rate;
@@ -367,7 +367,7 @@ static void update_cpu_capacity(unsigned int cpu)
 
 	set_capacity_scale(cpu, capacity);
 
-	printk(KERN_INFO "CPU%u: update cpu_capacity %lu\n",
+	pr_info("CPU%u: update cpu_capacity %lu\n",
 		cpu, arch_scale_cpu_capacity(NULL, cpu));
 }
 
@@ -586,14 +586,14 @@ static struct sched_group_energy energy_core_a15 = {
 static inline
 const struct sched_group_energy * const cpu_cluster_energy(int cpu)
 {
-	return cpu_topology[cpu].socket_id ? &energy_cluster_a7 :
+	return cpu_topology[cpu].cluster_id ? &energy_cluster_a7 :
 			&energy_cluster_a15;
 }
 
 static inline
 const struct sched_group_energy * const cpu_core_energy(int cpu)
 {
-	return cpu_topology[cpu].socket_id ? &energy_core_a7 :
+	return cpu_topology[cpu].cluster_id ? &energy_core_a7 :
 			&energy_core_a15;
 }
 
@@ -611,6 +611,30 @@ static struct sched_domain_topology_level arm_topology[] = {
 	{ NULL, },
 };
 
+static void __init reset_cpu_topology(void)
+{
+	unsigned int cpu;
+
+	for_each_possible_cpu(cpu) {
+		struct cputopo_arm *cpu_topo = &cpu_topology[cpu];
+
+		cpu_topo->thread_id = -1;
+		cpu_topo->core_id = -1;
+		cpu_topo->cluster_id = -1;
+
+		cpumask_clear(&cpu_topo->core_sibling);
+		cpumask_clear(&cpu_topo->thread_sibling);
+	}
+}
+
+static void __init reset_cpu_capacity(void)
+{
+	unsigned int cpu;
+
+	for_each_possible_cpu(cpu)
+		set_capacity_scale(cpu, SCHED_CAPACITY_SCALE);
+}
+
 /*
  * init_cpu_topology is called at boot when only one cpu is running
  * which prevent simultaneous write access to cpu_topology array
@@ -620,33 +644,14 @@ void __init init_cpu_topology(void)
 	unsigned int cpu;
 
 	/* init core mask and capacity */
-	for_each_possible_cpu(cpu) {
-		struct cputopo_arm *cpu_topo = &(cpu_topology[cpu]);
-
-		cpu_topo->thread_id = -1;
-		cpu_topo->core_id =  -1;
-		cpu_topo->cluster_id = -1;
-		cpumask_clear(&cpu_topo->core_sibling);
-		cpumask_clear(&cpu_topo->thread_sibling);
-
-		set_capacity_scale(cpu, SCHED_CAPACITY_SCALE);
-	}
+	reset_cpu_topology();
+	reset_cpu_capacity();
 	smp_wmb();
 
 	if (parse_dt_topology()) {
-		struct cputopo_arm *cpu_topo = &(cpu_topology[cpu]);
-
-		cpu_topo->thread_id = -1;
-		cpu_topo->core_id =  -1;
-		cpu_topo->cluster_id = -1;
-		cpumask_clear(&cpu_topo->core_sibling);
-		cpumask_clear(&cpu_topo->thread_sibling);
-
-		set_capacity_scale(cpu, SCHED_CAPACITY_SCALE);
+		reset_cpu_topology();
+		reset_cpu_capacity();
 	}
-
-	for_each_possible_cpu(cpu)
-		update_siblings_masks(cpu);
 
 	/* Set scheduler topology descriptor */
 	set_sched_topology(arm_topology);

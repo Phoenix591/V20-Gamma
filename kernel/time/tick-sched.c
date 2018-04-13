@@ -947,6 +947,18 @@ static void tick_nohz_restart_sched_tick(struct tick_sched *ts, ktime_t now)
 	tick_nohz_restart(ts, now);
 }
 
+/**
+ * tick_nohz_get_idle_calls - return the current idle calls counter value
+ *
+ * Called from the schedutil frequency scaling governor in scheduler context.
+ */
+unsigned long tick_nohz_get_idle_calls(void)
+{
+	struct tick_sched *ts = this_cpu_ptr(&tick_cpu_sched);
+
+	return ts->idle_calls;
+}
+
 static void tick_nohz_account_idle_ticks(struct tick_sched *ts)
 {
 #ifndef CONFIG_VIRT_CPU_ACCOUNTING_NATIVE
@@ -1331,4 +1343,9 @@ int tick_check_oneshot_change(int allow_nohz)
 
 	tick_nohz_switch_to_nohz();
 	return 0;
+}
+
+ktime_t * get_next_event_cpu(unsigned int cpu)
+{
+	return &(per_cpu(tick_cpu_device, cpu).evtdev->next_event);
 }
