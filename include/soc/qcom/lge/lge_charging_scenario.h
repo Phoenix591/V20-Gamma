@@ -29,7 +29,7 @@
 #define HIGH_VBAT_THREHSOLD	3980000 // 4000 mV - float voltage margin 20 mV
 
 #define DECCUR_FLOAT_VOLTAGE	4000000 // Warm & Cool float voltage 4000 mV
-#define DECCUR_CHG_CURRENT_DIVIDER	2 // Warm & Cool chg current 0.5C
+#define DECCUR_CHG_CURRENT_DIVIDER	3 // Warm & Cool chg current 0.3C
 
 /* Battery temperature states */
 
@@ -119,3 +119,4 @@ extern void
 lge_monitor_batt_temp(struct charging_info req, struct charging_rsp *res);
 #endif
 /* __LGE_CHARGING_SCENARIO_H_ */
+

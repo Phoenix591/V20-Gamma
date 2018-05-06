@@ -1,4 +1,4 @@
-/* Copyright (c) 2014-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2014-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -282,7 +282,7 @@
 				compatible = "android,fstab";
 				vendor {
 					compatible = "android,vendor";
-					dev = "/dev/block/platform/soc/624000.ufshc/by-name/vendor";
+					dev = "/dev/block/platform/soc/7464900.sdhci/by-name/vendor";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,discard";
 					fsmgr_flags = "wait";
@@ -290,7 +290,7 @@
 				 };
 				 system {
 					compatible = "android,system";
-					dev = "/dev/block/platform/soc/624000.ufshc/by-name/system";
+					dev = "/dev/block/platform/soc/7464900.sdhci/by-name/system";
 					type = "ext4";
 					mnt_flags = "ro,barrier=1,discard";
 					fsmgr_flags = "wait";
@@ -995,6 +995,7 @@
 		pinctrl-1 = <&spkr_i2s_clk_active>;
 	};
 
+#ifdef CONFIG_LGE_BROADCAST_ISDBT_JAPAN
 	tspp: msm_tspp@075e7000 {
 		compatible = "qcom,msm_tspp";
 		reg = <0x075e7000 0x1000>, /* MSM_TSIF0_PHYS */
@@ -1044,6 +1045,7 @@
 			&tsif1_signals_active
 			&tsif1_sync_active>;		/* dual-tsif-mode2 */
 	};
+#endif
 
 	wcd_rst_gpio: wcd_gpio_ctrl {
 		compatible = "qcom,wcd-gpio-ctrl";
@@ -1481,6 +1483,8 @@
 		qcom,l1-supported;
 		qcom,l1ss-supported;
 		qcom,aux-clk-sync;
+		qcom,common-clk-en;
+		qcom,clk-power-manage-en;
 
 		qcom,ep-latency = <10>;
 
@@ -2252,11 +2256,9 @@
 	qusb_phy0: qusb@7411000 {
 		compatible = "qcom,qusb2phy";
 		reg = <0x07411000 0x180>,
-			<0x06af8800 0x400>,
 			<0x0007024c 0x4>,
 			<0x00388018 0x4>;
 		reg-names = "qusb_phy_base",
-			"qscratch_base",
 			"tune2_efuse_addr",
 			"ref_clk_addr";
 		vdd-supply = <&pm8994_s2_corner>;
@@ -2288,11 +2290,9 @@
 	qusb_phy1: qusb@7412000 {
 		compatible = "qcom,qusb2phy";
 		reg = <0x07412000 0x180>,
-			<0x076f8800 0x400>,
 			<0x0007024c 0x4>,
 			<0x00388014 0x4>;
 		reg-names = "qusb_phy_base",
-			"qscratch_base",
 			"tune2_efuse_addr",
 			"ref_clk_addr";
 		vdd-supply = <&pm8994_s2_corner>;
@@ -2328,7 +2328,7 @@
 		reg-names = "qmp_phy_base",
 			    "vls_clamp_reg";
 		vdd-supply = <&pm8994_l28>;
-		vdda18-supply = <&pm8994_l12>;
+		core-supply = <&pm8994_l12>;
 		qcom,vdd-voltage-level = <0 925000 925000>;
 		qcom,vbus-valid-override;
 
@@ -4025,6 +4025,14 @@
 		compatible = "qcom,msm-power";
 		clock-names = "gpu_clk";
 		clocks = <&clock_gpu clk_gpu_gx_gfx3d_clk>;
+	};
+
+	pps {
+		compatible = "pps-gpio";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_pps>;
+		gpios = <&tlmm 128 0>;
+		status = "okay";
 	};
 };
 

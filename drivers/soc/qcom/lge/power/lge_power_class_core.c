@@ -11,7 +11,6 @@
 #include <linux/init.h>
 #include <linux/slab.h>
 #include <linux/device.h>
-#include <linux/notifier.h>
 #include <linux/err.h>
 #include <linux/power_supply.h>
 #include <soc/qcom/lge/power/lge_power_class.h>
@@ -21,9 +20,6 @@
 /* exported for the APM Power driver, APM emulation */
 struct class *lge_power_class;
 EXPORT_SYMBOL_GPL(lge_power_class);
-
-ATOMIC_NOTIFIER_HEAD(lge_power_notifier);
-EXPORT_SYMBOL_GPL(lge_power_notifier);
 
 static struct device_type lge_power_dev_type;
 
@@ -181,8 +177,6 @@ static void lge_power_changed_work(struct work_struct *work)
 				      __lge_power_changed_work);
 		class_for_each_device(power_supply_class, NULL, lpc,
 				      __lge_power_changed_for_power_supply_work);
-		atomic_notifier_call_chain(&lge_power_notifier,
-				PSY_EVENT_PROP_CHANGED, lpc);
 		kobject_uevent(&lpc->dev->kobj, KOBJ_CHANGE);
 		spin_lock_irqsave(&lpc->changed_lock, flags);
 	}
@@ -213,17 +207,6 @@ static void lge_power_dev_release(struct device *dev)
 	kfree(dev);
 }
 
-int lge_power_reg_notifier(struct notifier_block *nb)
-{
-	return atomic_notifier_chain_register(&lge_power_notifier, nb);
-}
-EXPORT_SYMBOL_GPL(lge_power_reg_notifier);
-
-void lge_power_unreg_notifier(struct notifier_block *nb)
-{
-	atomic_notifier_chain_unregister(&lge_power_notifier, nb);
-}
-EXPORT_SYMBOL_GPL(lge_power_unreg_notifier);
 int lge_power_register(struct device *parent, struct lge_power *lpc)
 {
 	struct device *dev;

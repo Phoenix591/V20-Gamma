@@ -9,297 +9,168 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+#define DEBUG
 
-#include <linux/module.h>
-#include <linux/kernel.h>
 #include <linux/of.h>
 #include <linux/slab.h>
-#include <linux/platform_device.h>
+#include <linux/module.h>
+#include <linux/kernel.h>
 #include <linux/proc_fs.h>
 
-#include <soc/qcom/lge/lge_power_sysfs.h>
+#include "inc-unified-sysfs.h"
 
-#define MODULE_NAME "power-sysfs"
-#define DEBUG 0
+#define UNIFIED_SYSFS_PROPERTY	"lge,unified-sysfs"
+#define UNIFIED_SYSFS_ROOT	"lge_power"
 
-static struct power_sysfs_array *arr;
-static int arr_cnt;
+struct unified_sysfs {
+	const char* group;
+	const char* symlink;
+	const char* source;
+};
 
-static int check_mandatory_path(int arr_num)
-{
-	int i;
-	int mandatory_num;
+struct unified_group {
+	struct list_head node;
+	const char* name;
+	struct proc_dir_entry* pde;
+};
 
-	for (i = 0; i < PWR_SYSFS_MANDATORY_MAX_NUM; i++) {
-		mandatory_num = i * 2;
-		if (!strcmp(arr[arr_num].group, mandatory_paths[mandatory_num]))
-			if (!strcmp(arr[arr_num].user_node, mandatory_paths[mandatory_num + 1]))
-				return 1;
+static struct proc_dir_entry* unified_group_search(struct proc_dir_entry* root,
+	struct list_head* groups, const char* name) {
+
+	struct unified_group* group;
+	list_for_each_entry(group, groups, node) {
+		if (!strcmp(group->name, name))
+			goto success;
 	}
+
+	group = kzalloc(sizeof(struct unified_group), GFP_KERNEL);
+	if (!group) {
+		pr_err("%s : ERROR to alloc memory for unified_group\n", __func__);
+		goto error;
+	}
+	group->pde = proc_mkdir(name, root);
+	if (!group->pde) {
+		pr_err("%s : ERROR to mkdir a group, %s\n", __func__, name);
+		goto error;
+	}
+
+	group->name = name;
+	list_add(&group->node, groups);
+success:
+	return group->pde;
+
+error:
+	kfree(group);
+	return NULL;
+}
+
+static void unified_group_free(struct list_head* groups) {
+	struct unified_group* iter;
+	struct unified_group* safe;
+
+	list_for_each_entry_safe(iter, safe, groups, node) {
+		list_del(&iter->node);
+		kfree(iter);
+	}
+}
+
+static int unified_sysfs_array(struct device_node* of_node,
+	struct unified_sysfs* sysfs_array, int sysfs_count) {
+
+	int sysfs_index;
+	for (sysfs_index=0; sysfs_index<sysfs_count; ++sysfs_index) {
+		static int i = 0;
+
+		if( of_property_read_string_index(of_node, UNIFIED_SYSFS_PROPERTY,
+				i++, &sysfs_array[sysfs_index].group) ||
+			of_property_read_string_index(of_node, UNIFIED_SYSFS_PROPERTY,
+				i++, &sysfs_array[sysfs_index].symlink) ||
+			of_property_read_string_index(of_node, UNIFIED_SYSFS_PROPERTY,
+				i++, &sysfs_array[sysfs_index].source) ) {
+
+			pr_err("%s : ERROR get %ith string\n", __func__, i);
+			return -ENOMEM;
+		}
+	}
+#ifdef DEBUG
+	for (sysfs_index=0; sysfs_index<sysfs_count; ++sysfs_index)
+		pr_err("%s : get %dth node is %s, %s, %s\n", __func__, sysfs_index,
+				sysfs_array[sysfs_index].group, sysfs_array[sysfs_index].symlink,
+				sysfs_array[sysfs_index].source);
+#endif
 	return 0;
 }
 
-#ifdef CONFIG_OF
-static int power_sysfs_parse_dt(struct platform_device *pdev)
-{
-	struct device_node *node = pdev->dev.of_node;
-	int arr_num, ret, i;
+static int unified_sysfs_mount(struct unified_sysfs* sysfs_array,
+	int sysfs_count) {
 
-	arr_cnt = of_property_count_strings(node, "sysfs,node") / 3;
-	if (arr_cnt > 0)
-		pr_info("%s : Total sysfs node is %d\n", __func__, arr_cnt);
+	int ret = -ENOMEM;
+	int sysfs_index;
+
+	struct list_head group_list = LIST_HEAD_INIT(group_list);
+	struct proc_dir_entry* sysfs_root = proc_mkdir(UNIFIED_SYSFS_ROOT, NULL);
+	if (sysfs_root != NULL) {
+		for (sysfs_index=0; sysfs_index<sysfs_count; sysfs_index++) {
+			struct proc_dir_entry* sysfs_group;
+
+			if (!strcmp(sysfs_array[sysfs_index].source, "NULL")) {
+				pr_info("%s : %s user node didn't have kernel node \n",
+					__func__, sysfs_array[sysfs_index].symlink);
+				continue;
+			}
+
+			sysfs_group = unified_group_search(sysfs_root, &group_list, sysfs_array[sysfs_index].group);
+			if (sysfs_group == NULL) {
+				pr_err("%s : ERROR making group '%s'\n", __func__,
+					sysfs_array[sysfs_index].group);
+				goto out;
+			}
+
+			if (!proc_symlink(sysfs_array[sysfs_index].symlink, sysfs_group,
+				sysfs_array[sysfs_index].source)) {
+				pr_err("%s : ERROR making symlink '%s'\n", __func__,
+					sysfs_array[sysfs_index].symlink);
+				goto out;
+			}
+		}
+
+		ret = 0;
+	}
 	else {
-		pr_err("%s : ERROR sysfs node isn't exist\n", __func__);
-		return 0;
+		pr_err("%s : ERROR making root sysfs\n", __func__);
 	}
 
-	arr = kzalloc(arr_cnt * sizeof(struct power_sysfs_array),
-			GFP_KERNEL);
-	if (arr != NULL) {
-		for (arr_num = 0, i = 0; arr_num < arr_cnt; arr_num++) {
-			ret = of_property_read_string_index(node, "sysfs,node",
-					i++, &arr[arr_num].group);
-			if (ret) {
-				pr_err("%s : ERROR get %ith group\n", __func__, arr_num);
-				goto err_get_array;
-			}
-			ret = of_property_read_string_index(node, "sysfs,node",
-					i++, &arr[arr_num].user_node);
-			if (ret) {
-				pr_err("%s : ERROR get %ith user_node\n", __func__, arr_num);
-				goto err_get_array;
-			}
-			ret = of_property_read_string_index(node, "sysfs,node",
-					i++, &arr[arr_num].kernel_node);
-			if (ret) {
-				pr_err("%s : ERROR get %ith kernel_node\n", __func__, arr_num);
-				goto err_get_array;
-			} else if (check_mandatory_path(arr_num)) {
-				if (!strcmp(arr[arr_num].kernel_node, "NULL")) {
-					pr_err("%s : ERROR get mandatory path %s\n", __func__,
-							arr[arr_num].user_node);
-					goto err_get_array;
-				}
-				pr_info("%s : %s path is mandatory \n", __func__,
-						arr[arr_num].user_node);
-			}
-		}
-	} else {
-		pr_err("%s : ERROR get sysfs array\n", __func__);
-		return -1;
-	}
-
-#if DEBUG
-	for (arr_num = 0; arr_num < arr_cnt; arr_num++)
-		pr_err("%s : get %dth node is %s, %s, %s\n", __func__, arr_num,
-				arr[arr_num].group, arr[arr_num].user_node,
-				arr[arr_num].kernel_node);
-#endif
-
-	return 0;
-
-err_get_array:
-	kzfree(arr);
-
-	return -1;
-}
-#else
-static int power_sysfs_parse_dt(struct platform_device *pdev)
-{
-	pr_err("%s : ERROR CONFIG_OF isn't set\n", __func__);
-	return -1;
-}
-#endif
-static int power_sysfs_make_path(void)
-{
-	int arr_num, group_num;
-	struct proc_dir_entry *p, *temp_p;
-	struct proc_dir_entry *groups_p[PWR_SYSFS_GROUPS_NUM];
-
-	/* Set Power Sysfs root directory */
-	p = proc_mkdir("lge_power", NULL);
-	if (p == NULL) {
-		pr_err("%s : ERROR make root sysfs \n", __func__);
-		return -ENOMEM;
-	}
-
-	/* Set Power Sysfs group directory */
-	if (groups_p != NULL) {
-		for (group_num = 0; group_num < PWR_SYSFS_GROUPS_NUM; group_num++) {
-			groups_p[group_num] = proc_mkdir(group_names[group_num], p);
-			if (groups_p[group_num] == NULL) {
-				pr_err("%s : ERROR make %s group \n", __func__,
-						group_names[group_num]);
-				return -ENOMEM;
-			}
-		}
-	} else {
-		pr_err("%s : ERROR make groups pointer \n", __func__);
-		return -ENOMEM;
-	}
-
-	/* Set Power Sysfs Path */
-	for (arr_num = 0; arr_num < arr_cnt; arr_num++) {
-		for (group_num = 0; group_num < PWR_SYSFS_GROUPS_NUM; group_num++)
-			if (!strcmp(arr[arr_num].group, group_names[group_num]))
-				break;
-
-		if (!strcmp(arr[arr_num].kernel_node, "NULL")) {
-			pr_info("%s : %s user node didn't have kernel node \n",
-					__func__, arr[arr_num].user_node);
-			continue;
-		} else {
-			temp_p = proc_symlink(arr[arr_num].user_node, groups_p[group_num],
-					arr[arr_num].kernel_node);
-			if (temp_p == NULL) {
-				pr_err("%s : ERROR make %ith sysfs path(%s, %s, %s)\n",
-						__func__, arr_num, arr[arr_num].group,
-						arr[arr_num].kernel_node, arr[arr_num].user_node);
-				return -ENOMEM;
-			}
-		}
-
-	}
-
-	return 0;
-}
-
-static int read_sysfs_path(void)
-{
-	int arr_num;
-
-	arr_cnt = PWR_SYSFS_PATH_NUM;
-
-	arr = kzalloc(arr_cnt * sizeof(struct power_sysfs_array),
-			GFP_KERNEL);
-
-	if (arr != NULL) {
-		for (arr_num = 0; arr_num < arr_cnt; arr_num++) {
-			arr[arr_num].group = default_pwr_sysfs_path[arr_num][0];
-			arr[arr_num].user_node = default_pwr_sysfs_path[arr_num][1];
-			arr[arr_num].kernel_node = default_pwr_sysfs_path[arr_num][2];
-			if (arr[arr_num].kernel_node == NULL) {
-				pr_err("%s : ERROR get %ith kernel_node\n", __func__, arr_num);
-				goto err_get_array;
-			} else if (check_mandatory_path(arr_num)) {
-				if (!strcmp(arr[arr_num].kernel_node, "NULL")) {
-					pr_err("%s : ERROR get mandatory path %s\n", __func__,
-							arr[arr_num].user_node);
-					goto err_get_array;
-				}
-				pr_info("%s : %s path is mandatory \n", __func__,
-						arr[arr_num].user_node);
-			}
-		}
-	} else {
-		pr_err("%s : ERROR get sysfs array\n", __func__);
-		return -1;
-	}
-
-#if DEBUG
-	for (arr_num = 0; arr_num < arr_cnt; arr_num++)
-		pr_err("%s : get %dth node is %s, %s, %s\n", __func__, arr_num,
-				arr[arr_num].group, arr[arr_num].user_node,
-				arr[arr_num].kernel_node);
-#endif
-
-	return 0;
-
-err_get_array:
-	kzfree(arr);
-
-	return -1;
-
-}
-
-static int power_sysfs_probe(struct platform_device *pdev)
-{
-	int ret;
-
-	if (pdev->dev.of_node) {
-		ret = power_sysfs_parse_dt(pdev);
-		if (ret < 0) {
-			pr_err("%s : ERROR Parsing DT\n", __func__);
-			return ret;
-		}
-	} else {
-		ret = read_sysfs_path();
-		if (ret < 0) {
-			pr_err("%s : ERROR Parsing data\n", __func__);
-			return ret;
-		}
-	}
-
-	ret = power_sysfs_make_path();
-	if (ret != 0) {
-		pr_err("%s : ERROR make sysfs path\n", __func__);
-		return ret;
-	}
-
-	pr_info("%s : Success Power sysfs Init\n", __func__);
-
+out :
+	unified_group_free(&group_list);
 	return ret;
 }
 
-static int power_sysfs_remove(struct platform_device *pdev)
-{
-	if (arr != NULL)
-		kzfree(arr);
-	return 0;
+int unified_sysfs_build(struct device_node* of_node) {
+	int ret = -EINVAL;
+	int sysfs_count = of_property_count_strings(of_node, UNIFIED_SYSFS_PROPERTY)
+			/ 3;
+	struct unified_sysfs* sysfs_array = kzalloc(sysfs_count
+			* sizeof(struct unified_sysfs), GFP_KERNEL);
+
+	if (sysfs_count <= 0 || sysfs_array == NULL) {
+		pr_info("Failed to parsing device tree for unified-sysfs\n");
+		goto err_get_array;
+	}
+
+	if (unified_sysfs_array(of_node, sysfs_array, sysfs_count)) {
+		pr_info("Failed to make array for unified-sysfs\n");
+		goto err_get_array;
+	}
+
+	if (unified_sysfs_mount(sysfs_array, sysfs_count)) {
+		pr_info("Failed to make array for unified-sysfs\n");
+		goto err_get_array;
+	}
+
+	pr_info("%s : Success Power sysfs Init\n", __func__);
+	ret = 0;
+
+err_get_array:
+	kfree(sysfs_array);
+	return ret;
 }
-
-#ifdef CONFIG_OF
-static struct of_device_id power_sysfs_match_table[] = {
-	{ .compatible = "lge,power-sysfs" },
-	{}
-};
-#endif
-
-static struct platform_driver power_sysfs_driver = {
-	.probe = power_sysfs_probe,
-	.remove = power_sysfs_remove,
-	.driver = {
-		.name = MODULE_NAME,
-		.owner = THIS_MODULE,
-#ifdef CONFIG_OF
-		.of_match_table = power_sysfs_match_table,
-#endif
-	},
-};
-
-static int __init power_sysfs_init(void)
-{
-	return platform_driver_register(&power_sysfs_driver);
-}
-
-static void power_sysfs_exit(void)
-{
-	platform_driver_unregister(&power_sysfs_driver);
-}
-
-#ifndef CONFIG_OF
-static struct platform_device power_sysfs_platform_device = {
-	.name   = "power-sysfs",
-	.id = 0,
-};
-
-static int __init power_sysfs_device_init(void)
-{
-	pr_err("%s st\n", __func__);
-	return platform_device_register(&power_sysfs_platform_device);
-}
-
-static void power_sysfs_device_exit(void)
-{
-	platform_device_unregister(&power_sysfs_platform_device);
-}
-#endif
-
-late_initcall(power_sysfs_init);
-module_exit(power_sysfs_exit);
-#ifndef CONFIG_OF
-late_initcall(power_sysfs_device_init);
-module_exit(power_sysfs_device_exit);
-#endif
-MODULE_DESCRIPTION("LGE Power sysfs driver");
-MODULE_LICENSE("GPL v2");

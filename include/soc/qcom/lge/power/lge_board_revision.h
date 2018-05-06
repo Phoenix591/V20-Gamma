@@ -31,9 +31,12 @@ enum hw_rev_no {
 	HW_REV_1_1,
 	HW_REV_1_2,
 	HW_REV_1_3,
+	HW_REV_1_4,
+	HW_REV_1_5,
+	HW_REV_1_6,
 	HW_REV_MAX
 };
-#elif defined(CONFIG_MACH_MSM8996_ELSA)
+#elif defined(CONFIG_MACH_MSM8996_ELSA) || defined(CONFIG_MACH_MSM8996_ANNA)
 enum hw_rev_no {
 	HW_REV_EVB1 = 0,
 	HW_REV_EVB2,

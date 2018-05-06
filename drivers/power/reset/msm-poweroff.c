@@ -1,4 +1,4 @@
-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -305,7 +305,7 @@ static void msm_restart_prepare(const char *cmd)
 #endif
 
 #if defined(CONFIG_LGE_HANDLE_PANIC) && !defined(CONFIG_LGE_DEFAULT_HARD_RESET)
-	if (!hard_reset)
+	if (in_panic || !hard_reset)
 		need_warm_reset = true;
 #elif defined(CONFIG_LGE_DEFAULT_HARD_RESET)
 	/* Set warm reset as true when device is in dload mode */
@@ -320,7 +320,8 @@ static void msm_restart_prepare(const char *cmd)
 			need_warm_reset = true;
 	} else {
 		need_warm_reset = (get_dload_mode() ||
-				(cmd != NULL && cmd[0] != '\0'));
+				((cmd != NULL && cmd[0] != '\0') &&
+				strcmp(cmd, "userrequested")));
 	}
 #endif
 
@@ -404,7 +405,12 @@ static void msm_restart_prepare(const char *cmd)
 		} else if (!strncmp(cmd, "edl", 3)) {
 			enable_emergency_dload_mode();
 #endif
-		} else {
+		} else if (!strncmp(cmd, "hardreset",9)) {
+			qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_NORMAL);
+		}
+		else {
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_NORMAL);
 			__raw_writel(0x77665501, restart_reason);

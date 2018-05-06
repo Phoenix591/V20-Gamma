@@ -12,7 +12,7 @@ fw-external-y := $(subst $(quote),,$(CONFIG_EXTRA_FIRMWARE))
 # There are three cases to care about:
 # 1. Building kernel with CONFIG_FIRMWARE_IN_KERNEL=y -- $(fw-shipped-y) should
 #    include the firmware files to include, according to .config
-# 2. 'make modules_install', which will install firmware for modules, and 
+# 2. 'make modules_install', which will install firmware for modules, and
 #    _also_ for the in-kernel drivers when CONFIG_FIRMWARE_IN_KERNEL=n
 # 3. 'make firmware_install', which installs all firmware, unconditionally.
 
@@ -144,7 +144,7 @@ fw-shipped-$(CONFIG_USB_SERIAL_XIRCOM) += keyspan_pda/xircom_pgs.fw
 fw-shipped-$(CONFIG_USB_VICAM) += vicam/firmware.fw
 fw-shipped-$(CONFIG_VIDEO_CPIA2) += cpia2/stv0672_vp4.bin
 fw-shipped-$(CONFIG_YAM) += yam/1200.bin yam/9600.bin
-fw-shipped-$(CONFIG_LGE_USB_ANX7418) += anx7418/ocm_hamming_13.bin
+fw-shipped-$(CONFIG_LGE_USB_ANX7418) += anx7418/ocm_hamming_12.bin
 fw-shipped-$(CONFIG_LGE_USB_ANX7418) += anx7418/ocm_crc_08.bin
 fw-shipped-$(CONFIG_LGE_USB_ANX7688) += analogix/mi1_eeprom_20_8b.img
 
@@ -154,7 +154,7 @@ quiet_cmd_ihex  = IHEX    $@
       cmd_ihex  = $(OBJCOPY) -Iihex -Obinary $< $@
 
 quiet_cmd_copy  = COPY    $@
-      cmd_copy  = cp $< $@
+      cmd_copy  = cp $(srctree)/$@ $@
 
 quiet_cmd_ihex2fw  = IHEX2FW $@
       cmd_ihex2fw  = $(objtree)/$(obj)/ihex2fw $< $@
@@ -215,10 +215,6 @@ $(patsubst %,$(obj)/%.gen.S, $(fw-external-y)): %: $(wordsize_deps) \
 $(patsubst %,$(obj)/%.gen.o, $(fw-shipped-y)): %.gen.o: %
 $(patsubst %,$(obj)/%.gen.o, $(fw-external-y)): $(obj)/%.gen.o: $(fwdir)/%
 
-# Manufacturers don't like to distribute in ihex, I guess I can't blame them.
-$(obj)/%: $(obj)/%.cp
-	$(call cmd,copy)
-
 # .ihex is used just as a simple way to hold binary files in a source tree
 # where binaries are frowned upon. They are directly converted with objcopy.
 $(obj)/%: $(obj)/%.ihex
@@ -227,7 +223,7 @@ $(obj)/%: $(obj)/%.ihex
 # Don't depend on ihex2fw if we're installing and it already exists.
 # Putting it after | in the dependencies doesn't seem sufficient when
 # we're installing after a cross-compile, because ihex2fw has dependencies
-# on stuff like /usr/lib/gcc/ppc64-redhat-linux/4.3.0/include/stddef.h and 
+# on stuff like /usr/lib/gcc/ppc64-redhat-linux/4.3.0/include/stddef.h and
 # thus wants to be rebuilt. Which it can't be, if the prebuilt kernel tree
 # is exported read-only for someone to run 'make install'.
 ifeq ($(INSTALL):$(wildcard $(obj)/ihex2fw),install:$(obj)/ihex2fw)

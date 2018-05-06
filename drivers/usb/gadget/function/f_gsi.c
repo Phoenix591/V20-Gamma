@@ -884,7 +884,7 @@ static void ipa_data_path_enable(struct gsi_data_port *d_port)
 	req.buf_base_addr = &dbl_register_addr;
 
 	req.num_bufs = gsi->d_port.in_request.num_bufs;
-	usb_gsi_ep_op(gsi->d_port.in_ep, &req, GSI_EP_OP_RING_IN_DB);
+	usb_gsi_ep_op(gsi->d_port.in_ep, &req, GSI_EP_OP_RING_DB);
 
 	if (gsi->d_port.out_ep) {
 		/* GSI channel DBL address for USB OUT endpoint */
@@ -895,7 +895,7 @@ static void ipa_data_path_enable(struct gsi_data_port *d_port)
 		/* use temp request to pass 64 bit dbl reg addr and num_bufs */
 		req.buf_base_addr = &dbl_register_addr;
 		req.num_bufs = gsi->d_port.out_request.num_bufs;
-		usb_gsi_ep_op(gsi->d_port.out_ep, &req, GSI_EP_OP_RING_IN_DB);
+		usb_gsi_ep_op(gsi->d_port.out_ep, &req, GSI_EP_OP_RING_DB);
 	}
 }
 

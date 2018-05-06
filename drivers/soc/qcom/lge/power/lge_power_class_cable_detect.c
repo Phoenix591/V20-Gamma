@@ -35,7 +35,11 @@
 #define DRIVER_AUTHOR	"yongk.kim@lge.com"
 #define DRIVER_VERSION	"1.0"
 
+#ifdef CONFIG_MACH_MSM8996_LUCYE_KR_F
+#define MAX_CABLE_NUM	6
+#else
 #define MAX_CABLE_NUM	15
+#endif
 #define DEFAULT_USB_VAL 1200001
 #define CABLE_DETECT_DELAY	msecs_to_jiffies(250)
 
@@ -220,18 +224,31 @@ static int cable_detect_read_cable_info(struct cable_detect *cd)
 	int adc = 0;
 	static int before_cable_info;
 	struct cable_info_table *cable_info_table;
-#if defined(CONFIG_LGE_PM_LGE_POWER_CLASS_BATTERY_ID_CHECKER) && !defined(CONFIG_LGE_USB_EMBEDDED_BATTERY)
-	int batt_present = lge_check_battery_present(cd);
-#ifdef CONFIG_LGE_PM_EMBEDDED_BATTERY
-	if (cd->is_factory_cable_boot && !cd->lge_adc_lpc && !batt_present) {
-#else
-	int batt_id = lge_check_battery_id_info(cd);
 
-	if (cd->is_factory_cable_boot && !cd->lge_adc_lpc
-		&& (!batt_present || batt_id == BATT_ID_UNKNOWN)) {
+	adc = cable_detect_get_usb_id_adc(cd);
+	list_for_each_entry(cable_info_table, &cd->cable_data_list, list) {
+	if (adc >= cable_info_table->threshhold_low &&
+			adc <= cable_info_table->threshhold_high) {
+#if defined(CONFIG_LGE_PM_LGE_POWER_CLASS_BATTERY_ID_CHECKER) && !defined(CONFIG_LGE_USB_EMBEDDED_BATTERY)
+		int batt_present = lge_check_battery_present(cd);
+#if !defined(CONFIG_LGE_PM_EMBEDDED_BATTERY)
+		int batt_id = lge_check_battery_id_info(cd);
+#endif
+#endif
+		cd->usb_current = cable_info_table->usb_ma;
+		cd->ta_current = cable_info_table->ta_ma;
+		cd->ibat_current = cable_info_table->ibat_ma;
+		cd->qc_ibat_current = cable_info_table->qc_ibat_ma;
+		cd->is_factory_cable = check_factory_cable(cable_info_table->type, true);
+
+#if defined(CONFIG_LGE_PM_LGE_POWER_CLASS_BATTERY_ID_CHECKER) && !defined(CONFIG_LGE_USB_EMBEDDED_BATTERY)
+#ifdef CONFIG_LGE_PM_EMBEDDED_BATTERY
+		if (cd->is_factory_cable && !batt_present) {
+#else
+		if (cd->is_factory_cable && (!batt_present || batt_id == BATT_ID_UNKNOWN)) {
 #endif
 #else
-	if (cd->is_factory_cable_boot && !cd->lge_adc_lpc) {
+		if (cd->is_factory_cable && !cd->lge_adc_lpc) {
 #endif
 #if defined(CONFIG_LGE_PM_EMBEDDED_BATT_ID_ADC)
 		cd->ta_current = FACTORY_BOOT_CURRENT_WITH_BATTERY;
@@ -240,41 +257,21 @@ static int cable_detect_read_cable_info(struct cable_detect *cd)
 		int batt_present = lge_check_battery_present(cd);
 		int batt_id = lge_check_battery_id_info(cd);
 
-		if (!batt_present || batt_id == BATT_ID_UNKNOWN) {
+			if (!batt_present || batt_id == BATT_ID_UNKNOWN) {
+				cd->ta_current = FACTORY_BOOT_CURRENT;
+				cd->usb_current = FACTORY_BOOT_CURRENT;
+			} else {
+				cd->ta_current = FACTORY_BOOT_CURRENT_WITH_BATTERY;
+				cd->usb_current = FACTORY_BOOT_CURRENT_WITH_BATTERY;
+			}
+#else
 			cd->ta_current = FACTORY_BOOT_CURRENT;
 			cd->usb_current = FACTORY_BOOT_CURRENT;
-		} else {
-			cd->ta_current = FACTORY_BOOT_CURRENT_WITH_BATTERY;
-			cd->usb_current = FACTORY_BOOT_CURRENT_WITH_BATTERY;
-		}
-#else
-		cd->ta_current = FACTORY_BOOT_CURRENT;
-		cd->usb_current = FACTORY_BOOT_CURRENT;
 #endif
-		cd->ibat_current = FACTORY_BOOT_IBAT;
+			cd->ibat_current = FACTORY_BOOT_IBAT;
 
-		cd->qc_ibat_current = FACTORY_BOOT_IBAT;
-		if (cd->cable_type_boot == LT_CABLE_56K)
-			cd->cable_type = CABLE_ADC_56K;
-		else if (cd->cable_type_boot == LT_CABLE_130K)
-			cd->cable_type = CABLE_ADC_130K;
-		else if (cd->cable_type_boot == LT_CABLE_910K)
-			cd->cable_type = CABLE_ADC_910K;
+		}
 
-		pr_err("iusb %d, ibat %d\n", cd->usb_current,
-						cd->ibat_current);
-		return cd->cable_type;
-	}
-
-	adc = cable_detect_get_usb_id_adc(cd);
-	list_for_each_entry(cable_info_table, &cd->cable_data_list, list) {
-	if (adc >= cable_info_table->threshhold_low &&
-			adc <= cable_info_table->threshhold_high) {
-		cd->usb_current = cable_info_table->usb_ma;
-		cd->ta_current = cable_info_table->ta_ma;
-		cd->ibat_current = cable_info_table->ibat_ma;
-		cd->qc_ibat_current = cable_info_table->qc_ibat_ma;
-		cd->is_factory_cable = check_factory_cable(cable_info_table->type, true);
 		if (before_cable_info != cable_info_table->type) {
 			pr_info("adc = %d\n", adc);
 			pr_info("cable info --> %d\n", cable_info_table->type);
@@ -285,7 +282,8 @@ static int cable_detect_read_cable_info(struct cable_detect *cd)
 		}
 	}
 
-	return -EINVAL;
+	/* When it reaches here, return CABLE_ADC_NONE as default */
+	return CABLE_ADC_NONE;
 }
 
 static void lge_cable_detect_work(struct work_struct *work){
@@ -657,7 +655,7 @@ static void lge_cable_detect_external_power_changed(struct lge_power *lpc)
 		pr_err("[LGE-CD] usb power_supply is not probed yet!!!\n");
 	} else {
 		rc = cd->usb_psy->get_property(
-				cd->usb_psy, POWER_SUPPLY_PROP_TYPE, &ret);
+				cd->usb_psy, POWER_SUPPLY_PROP_REAL_TYPE, &ret);
 		cd->chg_type = ret.intval;
 #ifdef CONFIG_LGE_PM_LGE_POWER_CLASS_SIMPLE
 		if ((cd->is_factory_cable==1) && (cd->dp_alt_mode == 0)) {
@@ -890,6 +888,16 @@ static void get_cable_data_from_dt(struct cable_detect *cd)
 	u32 cable_value[6];
 	int rc = 0;
 	struct device_node *node_temp = cd->dev->of_node;
+#ifdef CONFIG_MACH_MSM8996_LUCYE_KR_F
+	const char *propname[MAX_CABLE_NUM] = {
+		"lge,no-init-cable",
+		"lge,cable-mhl-1k",
+		"lge,cable-56k",
+		"lge,cable-130k",
+		"lge,cable-910k",
+		"lge,cable-none"
+	};
+#else
 	const char *propname[MAX_CABLE_NUM] = {
 		"lge,no-init-cable",
 		"lge,cable-mhl-1k",
@@ -907,12 +915,15 @@ static void get_cable_data_from_dt(struct cable_detect *cd)
 		"lge,cable-910k",
 		"lge,cable-none"
 	};
+#endif
 	for (i = 0 ; i < MAX_CABLE_NUM ; i++) {
 		struct cable_info_table *cable_info_table;
-		cable_info_table = kzalloc(sizeof(struct cable_info_table),
-							GFP_KERNEL);
-		of_property_read_u32_array(node_temp, propname[i],
-							cable_value, 6);
+		cable_info_table = kzalloc(sizeof(struct cable_info_table),	GFP_KERNEL);
+		if (!cable_info_table) {
+			pr_err("Unable to allocate memory\n");
+			return;
+		}
+		of_property_read_u32_array(node_temp, propname[i], cable_value, 6);
 		cable_info_table->threshhold_low = cable_value[0];
 		cable_info_table->threshhold_high = cable_value[1];
 		cable_info_table->type = i;
@@ -960,11 +971,14 @@ static int cable_detect_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct  lge_power *lge_power_cd;
-	struct cable_detect *cd =
-		kzalloc(sizeof(struct cable_detect), GFP_KERNEL);
+	struct cable_detect *cd = kzalloc(sizeof(struct cable_detect), GFP_KERNEL);
 	int batt_id = 0;
 
 	pr_info("lge_cable_detect probe start!\n");
+	if (!cd) {
+		pr_err("Unable to allocate memory\n");
+		return -ENOMEM;
+	}
 
 	cd->dev = &pdev->dev;
 	cd->cable_type = 0;
@@ -989,25 +1003,9 @@ static int cable_detect_probe(struct platform_device *pdev)
 #endif
 	cd->lge_adc_lpc = lge_power_get_by_name("lge_adc");
 	if (!cd->lge_adc_lpc) {
-#if defined (CONFIG_LGE_PM_LGE_POWER_CLASS_BATTERY_ID_CHECKER) && !defined(CONFIG_LGE_USB_EMBEDDED_BATTERY)
-		if ((cd->cable_type_boot == LT_CABLE_56K ||
-					cd->cable_type_boot == LT_CABLE_130K ||
-					cd->cable_type_boot == LT_CABLE_910K) &&
-				(!cd->batt_present || batt_id == BATT_ID_UNKNOWN)) {
-#else
-		if (cd->cable_type_boot == LT_CABLE_56K ||
-					cd->cable_type_boot == LT_CABLE_130K ||
-					cd->cable_type_boot == LT_CABLE_910K) {
-#endif
-
-			pr_err("Skip to progress getting lge_adc by PIF\n");
-			cd->is_factory_cable_boot = 1;
-			cd->is_factory_cable = cd->is_factory_cable_boot;
-		} else {
-			pr_err("lge_adc property failed to get\n");
-			ret = -EPROBE_DEFER;
-			goto error;
-		}
+		pr_err("lge_adc_lpc is not yet ready\n");
+		ret = -EPROBE_DEFER;
+		goto error;
 	}
 
 	lge_power_cd = &cd->lge_cd_lpc;

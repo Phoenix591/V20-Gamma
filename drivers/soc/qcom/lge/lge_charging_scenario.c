@@ -105,7 +105,12 @@ static struct batt_temp_table chg_temp_table[CHG_MAXIDX] = {
 static enum lge_charging_states charging_state;
 static enum lge_states_changes states_change;
 static int change_charger;
+static int pseudo_chg_ui;
 static int max_chg_voltage;
+
+#ifdef CONFIG_LGE_THERMALE_CHG_CONTROL
+static int last_thermal_current;
+#endif
 
 #ifdef CONFIG_LGE_ADJUST_BATT_TEMP
 #define MAX_BATT_TEMP_CHECK_COUNT 2
@@ -173,18 +178,26 @@ determine_lge_charging_state(enum lge_battemp_states battemp_st, int batt_volt)
 		if (IS_TEMP_EXTREME_H_OR_L(battemp_st)) {
 			states_change = STS_CHE_NORMAL_TO_STPCHG;
 			next_state = CHG_BATT_STPCHG_STATE;
+			pseudo_chg_ui = 0;
 		} else if(IS_TEMP_WARM(battemp_st) || IS_TEMP_COOL(battemp_st)) {
 				states_change = STS_CHE_NORMAL_TO_DECCUR;
 				next_state = CHG_BATT_DECCUR_STATE;
+				pseudo_chg_ui = 1;
+		} else {
+			pseudo_chg_ui = 1;
 		}
 		break;
 	case CHG_BATT_DECCUR_STATE:
 		if (IS_TEMP_EXTREME_H_OR_L(battemp_st)) {
 			states_change = STS_CHE_DECCUR_TO_STPCHG;
 			next_state = CHG_BATT_STPCHG_STATE;
+			pseudo_chg_ui = 0;
 		} else if (IS_TEMP_NORMAL(battemp_st)) {
 			states_change = STS_CHE_DECCUR_TO_NORMAL;
 			next_state = CHG_BATT_NORMAL_STATE;
+			pseudo_chg_ui = 1;
+		}  else {
+			pseudo_chg_ui = 1;
 		}
 		break;
 	case CHG_BATT_WARNIG_STATE:
@@ -194,10 +207,14 @@ determine_lge_charging_state(enum lge_battemp_states battemp_st, int batt_volt)
 			if (IS_TEMP_NORMAL(battemp_st)) {
 				states_change = STS_CHE_STPCHG_TO_NORMAL;
 				next_state = CHG_BATT_NORMAL_STATE;
+				pseudo_chg_ui = 1;
 			} else {
 				states_change = STS_CHE_STPCHG_TO_DECCUR;
 				next_state = CHG_BATT_DECCUR_STATE;
+				pseudo_chg_ui = 1;
 			}
+		} else {
+			pseudo_chg_ui = 0;
 		}
 		break;
 	default:
@@ -205,8 +222,8 @@ determine_lge_charging_state(enum lge_battemp_states battemp_st, int batt_volt)
 		break;
 	}
 
-	pr_info("determine_lge_charging_state : states_change[%d], next_state[%d]\n",
-			states_change, next_state);
+	pr_info("determine_lge_charging_state : states_change[%d], next_state[%d], pseudo_chg_ui[%d]\n",
+			states_change, next_state, pseudo_chg_ui);
 
 	return next_state;
 }
@@ -254,22 +271,39 @@ void lge_monitor_batt_temp(struct charging_info req, struct charging_rsp *res)
 	res->state = charging_state;
 	res->change_lvl = states_change;
 
-	if ((charging_state == CHG_BATT_DECCUR_STATE) && !IS_TEMP_UNDER_WARM(battemp_state)) {
-		res->float_voltage = DECCUR_FLOAT_VOLTAGE;
-		res->pseudo_chg_ui = 1;
-	} else {
-		res->float_voltage = max_chg_voltage;
-		res->pseudo_chg_ui = 0;
-	}
+	res->float_voltage =
+		(charging_state == CHG_BATT_DECCUR_STATE
+			&& IS_TEMP_WARM(battemp_state)) ? DECCUR_FLOAT_VOLTAGE : max_chg_voltage;
 
 	if (charging_state == CHG_BATT_STPCHG_STATE){
 			res->disable_chg = true;
 	} else
 			res->disable_chg = false;
 
+#ifdef CONFIG_LGE_THERMALE_CHG_CONTROL
+	if (charging_state == CHG_BATT_NORMAL_STATE) {
+		if (req.chg_current_te <= req.chg_current_ma)
+			res->chg_current = req.chg_current_te;
+		else
+			res->chg_current = req.chg_current_ma;
+	} else if (charging_state == CHG_BATT_DECCUR_STATE) {
+		if (req.chg_current_te <= (req.chg_current_ma / DECCUR_CHG_CURRENT_DIVIDER))
+			res->chg_current = req.chg_current_te;
+		else
+			res->chg_current = req.chg_current_ma / DECCUR_CHG_CURRENT_DIVIDER;
+	} else {
+		res->chg_current = DC_CURRENT_DEF;
+	}
+
+	if (last_thermal_current ^ res->chg_current) {
+		last_thermal_current = res->chg_current;
+		res->force_update = true;
+	}
+#else
 	res->chg_current =
 		charging_state ==
-		CHG_BATT_DECCUR_STATE ? req.chg_current_ma / DECCUR_CHG_CURRENT_DIVIDER : DC_CURRENT_DEF;
+		CHG_BATT_DECCUR_STATE ? DC_IUSB_CURRENT : DC_CURRENT_DEF;
+#endif
 
 	res->btm_state = BTM_HEALTH_GOOD;
 
@@ -279,6 +313,8 @@ void lge_monitor_batt_temp(struct charging_info req, struct charging_rsp *res)
 		res->btm_state = BTM_HEALTH_COLD;
 	else
 		res->btm_state = BTM_HEALTH_GOOD;
+
+	res->pseudo_chg_ui = pseudo_chg_ui;
 
 #ifdef DEBUG_LCS
 	pr_err("DLCS ==============================================\n");
@@ -295,14 +331,31 @@ void lge_monitor_batt_temp(struct charging_info req, struct charging_rsp *res)
 	pr_err("DLCS : res -> btm_state    = %d\n", res->btm_state);
 	pr_err("DLCS : res -> is_charger   = %d\n", req.is_charger);
 	pr_err("DLCS : res -> pseudo_chg_ui= %d\n", res->pseudo_chg_ui);
+#ifdef CONFIG_LGE_THERMALE_CHG_CONTROL
+	pr_err("DLCS : req -> chg_current_thermal  = %d\n", req.chg_current_te);
+	pr_err("DLCS : req -> chg_current_max  = %d\n", req.chg_current_ma);
+#endif
 	pr_err("DLCS ==============================================\n");
 #endif
 
+#ifdef CONFIG_LGE_THERMALE_CHG_CONTROL
 	pr_err("LGE charging scenario : state %d -> %d(%d-%d),"\
-		" temp=%d(en=%d), volt=%d, fl_volt=%d, BTM=%d,"\
-		" charger=%d, cur_set=%d, chg_cur = %d\n",
+		" temp=%d, volt=%d, fl_volt=%d BTM=%d,"\
+		" charger=%d, cur_set=%d/%d, chg_cur = %d\n",
 		pre_state, charging_state, res->change_lvl,
 		res->force_update ? 1 : 0,
-		req.batt_temp, req.lcs_en, req.batt_volt / 1000, res->float_voltage / 1000,
-		res->btm_state, req.is_charger, res->chg_current, req.current_now);
+		req.batt_temp, req.batt_volt / 1000, res->float_voltage,
+		res->btm_state, req.is_charger,
+		req.chg_current_te, res->chg_current, req.current_now);
+#else
+	pr_err("LGE charging scenario : state %d -> %d(%d-%d),"\
+		" temp=%d, volt=%d, BTM=%d,"\
+		" charger=%d, chg_cur = %d\n",
+		pre_state, charging_state, res->change_lvl,
+		res->force_update ? 1 : 0,
+		req.batt_temp, req.batt_volt / 1000,
+		res->btm_state, req.is_charger, req.current_now);
+#endif
 }
+
+

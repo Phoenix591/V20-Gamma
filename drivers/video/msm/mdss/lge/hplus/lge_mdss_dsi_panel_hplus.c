@@ -346,10 +346,8 @@ int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 			if (pinfo->mq_mode)
 				oem_mdss_mq_cmd_unset(ctrl);
 #endif
-#if defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
 			/*fps to 60 */
 			mdss_dsi_panel_cmds_send(ctrl, &ctrl->aod_cmds[AOD_PANEL_CMD_FPS_60], CMD_REQ_COMMIT);
-#endif
 			goto notify;
 		default:
 			pr_err("[AOD] Unknown Mode : %d\n", pinfo->aod_cmd_mode);
@@ -440,6 +438,8 @@ int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 	switch (pinfo->aod_cmd_mode) {
 		case AOD_CMD_ENABLE:
+			/* fps to 30 */
+			mdss_dsi_panel_cmds_send(ctrl, &ctrl->aod_cmds[AOD_PANEL_CMD_FPS_30], CMD_REQ_COMMIT);
 #if defined(CONFIG_LGE_DISPLAY_MARQUEE_SUPPORTED)
 			if (pinfo->mq_mode)
 				oem_mdss_mq_cmd_set(ctrl);
@@ -460,10 +460,8 @@ int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 		case OFF_CMD:
 			break;
 		case CMD_SKIP:
-#if defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
 			/* fps to 30 */
 			mdss_dsi_panel_cmds_send(ctrl, &ctrl->aod_cmds[AOD_PANEL_CMD_FPS_30], CMD_REQ_COMMIT);
-#endif
 			goto notify;
 		default:
 			pr_err("[AOD] Unknown Mode : %d\n", pinfo->aod_cmd_mode);

@@ -54,8 +54,13 @@ const char *pack_name, *batt_capacity;
 char *batt_info;
 
 static char *make_battery_info(struct lge_battery_id *battery_id) {
-	if (batt_info == NULL)
+	if (batt_info == NULL) {
 		batt_info = kmalloc(30, GFP_KERNEL);
+		if (!batt_info) {
+			pr_err("Unable to allocate memory\n");
+			return "ENOMEM";
+		}
+	}
 
 	sprintf(batt_info, "LGE_%s_%s_%smAh",pack_name,
 		batt_cell[battery_id->batt_cell_no], batt_capacity);

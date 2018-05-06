@@ -50,10 +50,6 @@ extern int reg_num;
 int cmd_num;
 #endif
 
-#if defined(CONFIG_LGE_LCD_DYNAMIC_CABC_MIE_CTRL)
-unsigned int cabc_ctrl;
-#endif
-
 #if defined(CONFIG_MACH_LGE)
 struct mdss_panel_data *pdata_base;
 #endif
@@ -192,14 +188,6 @@ int mdss_dsi_panel_cmd_read(struct mdss_dsi_ctrl_pdata *ctrl, char cmd0,
 	return mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
 
-/* TODO: check if it is valid for hplus */
-#if defined(CONFIG_LGE_DISPLAY_COMMON)
-char lge_dcs_cmd[1] = {0xD8}; /* DTYPE_DCS_READ */
-struct dsi_cmd_desc lge_dcs_read_cmd = {
-	{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(lge_dcs_cmd)},
-	lge_dcs_cmd
-};
-
 static void mdss_dsi_panel_apply_settings(struct mdss_dsi_ctrl_pdata *ctrl,
 				struct dsi_panel_cmds *pcmds)
 {
@@ -218,6 +206,14 @@ static void mdss_dsi_panel_apply_settings(struct mdss_dsi_ctrl_pdata *ctrl,
 	cmdreq.cb = NULL;
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
+
+/* TODO: check if it is valid for hplus */
+#if defined(CONFIG_LGE_DISPLAY_COMMON)
+char lge_dcs_cmd[1] = {0xD8}; /* DTYPE_DCS_READ */
+struct dsi_cmd_desc lge_dcs_read_cmd = {
+	{DTYPE_DCS_READ, 1, 0, 1, 5, sizeof(lge_dcs_cmd)},
+	lge_dcs_cmd
+};
 
 void lge_force_mdss_dsi_panel_cmd_read(char cmd0, int cnt, char* ret_buf)
 {
@@ -853,427 +849,6 @@ static int mdss_dsi_panel_apply_display_setting(struct mdss_panel_data *pdata,
 	return 0;
 }
 
-#if defined(CONFIG_LGE_DISPLAY_SRE_MODE)
-static ssize_t sre_get(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-	return sprintf(buf, "%d\n", ctrl->sre_status);
-}
-
-static ssize_t sre_set(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	ssize_t ret = strnlen(buf, PAGE_SIZE);
-	int input;
-	char mask = SRE_MASK;
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-	if (pdata_base->panel_info.panel_power_state == 0) {
-		pr_err("%s: Panel off state. Ignore sre_set cmd\n", __func__);
-		return -EINVAL;
-	}
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-	sscanf(buf, "%d", &input);
-
-	if(ctrl->hdr_status > 0 || ctrl->dolby_status > 0) {
-		pr_info("%s : HDR or Dolby on, so disable SRE \n", __func__);
-		return ret;
-	}
-
-	ctrl->reg_55h_cmds.cmds[0].payload[1] &= (~mask);
-	if (input == 0) {
-		ctrl->sre_status = 0;
-		pr_info("%s : SRE OFF \n",__func__);
-	} else {
-		if (input == SRE_LOW) {
-			ctrl->sre_status = SRE_LOW;
-			pr_info("%s : SRE LOW \n",__func__);
-			ctrl->reg_55h_cmds.cmds[0].payload[1] |= SRE_MASK_LOW;
-		} else if (input == SRE_MID) {
-			ctrl->sre_status = SRE_MID;
-			pr_info("%s : SRE MID \n",__func__);
-			ctrl->reg_55h_cmds.cmds[0].payload[1] |= SRE_MASK_MID;
-		} else if (input == SRE_HIGH) {
-			ctrl->sre_status = SRE_HIGH;
-			pr_info("%s : SRE HIGH \n",__func__);
-			ctrl->reg_55h_cmds.cmds[0].payload[1] |= SRE_MASK_HIGH;
-		} else {
-			return -EINVAL;
-		}
-	}
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_55h_cmds, CMD_REQ_COMMIT);
-	pr_info("%s : 55h:0x%02x, f0h:0x%02x, f2h(SH):0x%02x, fbh(CABC):0x%02x \n",__func__,
-		ctrl->reg_55h_cmds.cmds[0].payload[1],	ctrl->reg_f0h_cmds.cmds[0].payload[1],
-		ctrl->reg_f2h_cmds.cmds[0].payload[3], ctrl->reg_fbh_cmds.cmds[0].payload[4]);
-
-	return ret;
-}
-
-static DEVICE_ATTR(sre_mode, S_IWUSR|S_IRUGO, sre_get, sre_set);
-static DEVICE_ATTR(daylight_mode, S_IWUSR|S_IRUGO, sre_get, sre_set);
-#endif
-
-#if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
-static ssize_t sharpness_get(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	return sprintf(buf, "%x\n", ctrl->reg_f2h_cmds.cmds[0].payload[3]);
-}
-
-static ssize_t sharpness_set(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-	unsigned int param;
-	ssize_t ret = strnlen(buf, PAGE_SIZE);
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	if (pdata_base->panel_info.panel_power_state == 0) {
-		pr_err("%s: Panel off state. Ignore sharpness enhancement cmd\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	sscanf(buf, "%x", &param);
-	ctrl->reg_f2h_cmds.cmds[0].payload[3] = param;
-	pr_info("%s: Sharpness = 0x%02x \n", __func__, param);
-
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_f2h_cmds, CMD_REQ_COMMIT);
-
-	pr_info("%s : 55h:0x%02x, f0h:0x%02x, f2h(SH):0x%02x, fbh(CABC):0x%02x \n",__func__,
-		ctrl->reg_55h_cmds.cmds[0].payload[1],	ctrl->reg_f0h_cmds.cmds[0].payload[1],
-		ctrl->reg_f2h_cmds.cmds[0].payload[3], ctrl->reg_fbh_cmds.cmds[0].payload[4]);
-
-	return ret;
-}
-static DEVICE_ATTR(sharpness, S_IWUSR|S_IRUGO, sharpness_get, sharpness_set);
-#endif
-
-#if defined(CONFIG_LGE_LCD_DYNAMIC_CABC_MIE_CTRL)
-static ssize_t image_enhance_get(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	return sprintf(buf, "%d\n", ctrl->ie_on);
-}
-
-static ssize_t image_enhance_set(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size)
-{
-	ssize_t ret = strnlen(buf, PAGE_SIZE);
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-	char mask = 0x00;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	if (pdata_base->panel_info.panel_power_state == 0) {
-		pr_err("%s: Panel off state. Ignore image enhancement cmd\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl =	container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	sscanf(buf, "%d", &ctrl->ie_on);
-	pr_info("%s: IE = %d \n", __func__, ctrl->ie_on);
-
-	if (ctrl->ie_on == 1) {
-		ctrl->reg_f0h_cmds.cmds[0].payload[1] |= SAT_MASK | SH_MASK;
-	} else if (ctrl->ie_on == 0) {
-		mask = SAT_MASK | SH_MASK;
-		ctrl->reg_f0h_cmds.cmds[0].payload[1] &= (~mask);
-	} else {
-		pr_info("%s: set = %d, wrong set value\n", __func__, ctrl->ie_on);
-	}
-
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_f0h_cmds, CMD_REQ_COMMIT);
-	pr_info("%s : 55h:0x%02x, f0h:0x%02x, f2h(SH):0x%02x, fbh(CABC):0x%02x \n",__func__,
-		ctrl->reg_55h_cmds.cmds[0].payload[1],	ctrl->reg_f0h_cmds.cmds[0].payload[1],
-		ctrl->reg_f2h_cmds.cmds[0].payload[3], ctrl->reg_fbh_cmds.cmds[0].payload[4]);
-	return ret;
-}
-
-#if defined(CONFIG_LGE_DISPLAY_LUCYE_COMMON)
-static int cabc_on_off = 1;
-#endif
-static ssize_t cabc_get(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", cabc_on_off);
-}
-
-static ssize_t cabc_set(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-	ssize_t ret = strnlen(buf, PAGE_SIZE);
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	if (pdata_base->panel_info.panel_power_state == 0) {
-		pr_err("%s: Panel off state. Ignore cabc set cmd\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	sscanf(buf, "%d", &cabc_on_off);
-
-	if (cabc_on_off == 0) {
-		char mask = CABC_MASK;
-		ctrl->reg_55h_cmds.cmds[0].payload[1] &= (~mask);
-		ctrl->reg_fbh_cmds.cmds[0].payload[4] |= CABC_OFF_VALUE;
-	} else if (cabc_on_off == 1) {
-		ctrl->reg_55h_cmds.cmds[0].payload[1] |= CABC_MASK;
-		ctrl->reg_fbh_cmds.cmds[0].payload[4] |= CABC_ON_VALUE;
-	} else {
-		return -EINVAL;
-	}
-
-	pr_info("%s: CABC = %d, 55h = 0x%02x, fbh = 0x%02x\n",__func__,cabc_on_off,
-		ctrl->reg_55h_cmds.cmds[0].payload[1],ctrl->reg_f0h_cmds.cmds[0].payload[1]);
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_55h_cmds, CMD_REQ_COMMIT);
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_fbh_cmds, CMD_REQ_COMMIT);
-
-	return ret;
-}
-
-static DEVICE_ATTR(image_enhance_set, S_IWUSR|S_IRUGO, image_enhance_get, image_enhance_set);
-static DEVICE_ATTR(cabc, S_IWUSR|S_IRUGO, cabc_get, cabc_set);
-#endif
-
-#if defined(CONFIG_LGE_DISPLAY_LINEAR_GAMMA)
-static ssize_t linear_gamma_get(struct device *dev,
-	struct device_attribute *attr, char *buf)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	return sprintf(buf, "%s\n", buf);
-}
-
-static ssize_t linear_gamma_set(struct device *dev,
-	struct device_attribute *attr, const char *buf, size_t size)
-{
-	ssize_t ret = strnlen(buf, PAGE_SIZE);
-    int input;
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	if (pdata_base->panel_info.panel_power_state == 0) {
-		pr_err("%s: Panel off state. Ignore color enhancement cmd\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	sscanf(buf, "%d", &input);
-	if (input == 0) {
-		mdss_dsi_panel_cmds_send(ctrl, &ctrl->linear_gamma_default_cmds, CMD_REQ_COMMIT);
-	} else {
-		mdss_dsi_panel_cmds_send(ctrl, &ctrl->linear_gamma_tuning_cmds, CMD_REQ_COMMIT);
-	}
-	return ret;
-}
-
-static DEVICE_ATTR(linear_gamma, S_IWUSR|S_IRUGO, linear_gamma_get, linear_gamma_set);
-#endif
-
-
-#if defined(CONFIG_LGE_DISPLAY_DOLBY_MODE)
-static ssize_t dolby_mode_get(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	return sprintf(buf, "%d\n", ctrl->dolby_status);
-}
-
-static ssize_t dolby_mode_set(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size)
-{
-	ssize_t ret = strnlen(buf, PAGE_SIZE);
-	int input;
-	char mask = 0x00;
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-	if (pdata_base->panel_info.panel_power_state == 0) {
-		pr_err("%s: Panel off state. Ignore color enhancement cmd\n", __func__);
-		return -EINVAL;
-	}
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-	sscanf(buf, "%d", &input);
-	ctrl->dolby_status = input;
-
-	if (input == 0) {
-		pr_info("%s: Dolby Mode OFF\n", __func__);
-		/* Retore 55h Reg */
-		ctrl->reg_55h_cmds.cmds[0].payload[1] |= CABC_MASK;
-		ctrl->reg_f0h_cmds.cmds[0].payload[1] |= SH_MASK | SAT_MASK;
-		ctrl->reg_fbh_cmds.cmds[0].payload[4] = CABC_ON_VALUE;
-	} else {
-		pr_info("%s: Dolby Mode ON\n", __func__);
-		/* Dolby Setting : CABC OFF, SRE OFF*/
-		mask = (CABC_MASK | SRE_MASK);
-		ctrl->reg_55h_cmds.cmds[0].payload[1] &= (~mask);
-		mask = (SH_MASK | SAT_MASK);
-		ctrl->reg_f0h_cmds.cmds[0].payload[1] &= (~mask);
-		ctrl->reg_fbh_cmds.cmds[0].payload[4] = CABC_OFF_VALUE;
-	}
-	/* Send 55h, f0h cmds in lge_change_reader_mode function */
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_fbh_cmds, CMD_REQ_COMMIT);
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_55h_cmds, CMD_REQ_COMMIT);
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_f0h_cmds, CMD_REQ_COMMIT);
-
-	pr_info("%s : 55h:0x%02x, f0h:0x%02x, f2h(SH):0x%02x, fbh(CABC):0x%02x \n",__func__,
-		ctrl->reg_55h_cmds.cmds[0].payload[1],	ctrl->reg_f0h_cmds.cmds[0].payload[1],
-		ctrl->reg_f2h_cmds.cmds[0].payload[3], ctrl->reg_fbh_cmds.cmds[0].payload[4]);
-	return ret;
-}
-static DEVICE_ATTR(dolby_mode, S_IWUSR|S_IRUGO, dolby_mode_get, dolby_mode_set);
-#endif
-
-#if defined(CONFIG_LGE_DISPLAY_HDR_MODE)
-
-static ssize_t HDR_mode_get(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	return sprintf(buf, "%d\n", ctrl->hdr_status);
-}
-
-static ssize_t HDR_mode_set(struct device *dev,
-		struct device_attribute *attr, const char *buf, size_t size)
-{
-	ssize_t ret = strnlen(buf, PAGE_SIZE);
-	int input;
-	char mask = 0x00;
-	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
-
-	if (pdata_base == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
-		return -EINVAL;
-	}
-
-	if (pdata_base->panel_info.panel_power_state == 0) {
-		pr_err("%s: Panel off state. Ignore color enhancement cmd\n", __func__);
-		return -EINVAL;
-	}
-
-	ctrl =  container_of(pdata_base, struct mdss_dsi_ctrl_pdata,
-			panel_data);
-
-	sscanf(buf, "%d", &input);
-	ctrl->hdr_status = input;
-
-	if (input == 0) {
-		pr_info("%s: HDR Mode OFF\n", __func__);
-		/* Retore 55h & F0h Reg */
-		ctrl->reg_55h_cmds.cmds[0].payload[1] |= CABC_MASK;
-		ctrl->reg_f0h_cmds.cmds[0].payload[1] |= SAT_MASK | SH_MASK;
-		ctrl->reg_fbh_cmds.cmds[0].payload[4] = CABC_ON_VALUE;
-	} else {
-		pr_info("%s: HDR Mode ON\n", __func__);
-		/* Dolby Setting : CABC OFF, SRE OFF, SAT OFF, SH OFF */
-		mask = (CABC_MASK | SRE_MASK);
-		ctrl->reg_55h_cmds.cmds[0].payload[1] &= (~mask);
-		mask = (SH_MASK | SAT_MASK);
-		ctrl->reg_f0h_cmds.cmds[0].payload[1] &= (~mask);
-		ctrl->reg_fbh_cmds.cmds[0].payload[4] = CABC_OFF_VALUE;
-	}
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_fbh_cmds, CMD_REQ_COMMIT);
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_55h_cmds, CMD_REQ_COMMIT);
-	mdss_dsi_panel_cmds_send(ctrl, &ctrl->reg_f0h_cmds, CMD_REQ_COMMIT);
-
-	pr_info("%s : 55h:0x%02x, f0h:0x%02x, f2h(SH):0x%02x, fbh(CABC):0x%02x \n",__func__,
-		ctrl->reg_55h_cmds.cmds[0].payload[1],	ctrl->reg_f0h_cmds.cmds[0].payload[1],
-		ctrl->reg_f2h_cmds.cmds[0].payload[3], ctrl->reg_fbh_cmds.cmds[0].payload[4]);
-
-	return ret;
-}
-static DEVICE_ATTR(hdr_mode, S_IWUSR|S_IRUGO, HDR_mode_get, HDR_mode_set);
-#endif
-
-
 #if defined(CONFIG_LGE_LCD_TUNING)
 int find_lcd_cmd(void)
 {
@@ -1499,8 +1074,11 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 		break;
 	}
 }
-
-#if !IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_ON)
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_ON)
+/*
+ * mdss_dsi_panel_on() should be defined in other file.
+ */
+#else
 #ifdef TARGET_HW_MDSS_HDMI
 static void mdss_dsi_panel_on_hdmi(struct mdss_dsi_ctrl_pdata *ctrl,
 			struct mdss_panel_info *pinfo)
@@ -1516,14 +1094,7 @@ static void mdss_dsi_panel_on_hdmi(struct mdss_dsi_ctrl_pdata *ctrl,
 	(void)(*pinfo);
 }
 #endif
-#endif
 
-
-#if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_ON)
-/*
- * mdss_dsi_panel_on() should be defined in other file.
- */
-#else
 static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
@@ -1625,7 +1196,11 @@ end:
 	return 0;
 }
 
-#if !IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_OFF)
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_OFF)
+/*
+ * mdss_dsi_panel_off() should be defined in other file.
+ */
+#else
 #ifdef TARGET_HW_MDSS_HDMI
 static void mdss_dsi_panel_off_hdmi(struct mdss_dsi_ctrl_pdata *ctrl,
 			struct mdss_panel_info *pinfo)
@@ -1643,14 +1218,7 @@ static void mdss_dsi_panel_off_hdmi(struct mdss_dsi_ctrl_pdata *ctrl,
 	(void)(*pinfo);
 }
 #endif
-#endif
 
-
-#if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_OFF)
-/*
- * mdss_dsi_panel_off() should be defined in other file.
- */
-#else
 static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl = NULL;
@@ -1731,7 +1299,6 @@ static void mdss_dsi_parse_trigger(struct device_node *np, char *trigger,
 			*trigger = DSI_CMD_TRIGGER_SW_TE;
 	}
 }
-
 
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
 int mdss_dsi_parse_dcs_cmds(struct device_node *np,
@@ -3018,11 +2585,25 @@ int mdss_dsi_panel_timing_switch(struct mdss_dsi_ctrl_pdata *ctrl,
 #endif
 #if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
 	ctrl->display_on_cmds = pt -> display_on_cmds;
-	ctrl->screen_cmds= pt->screen_cmds;
+#if defined(CONFIG_LGE_DISPLAY_MFTS_DET_SUPPORTED) && !defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
+	ctrl->trimming_cmds = pt->trimming_cmds;
+	ctrl->cam_cmds = pt->cam_cmds;
+	ctrl->screen_cmds_102v = pt->screen_cmds_102v;
+	ctrl->screen_cmds_129v = pt->screen_cmds_129v;
+	ctrl->screen_cmds_132v = pt->screen_cmds_132v;
+#endif
 #endif
 #if defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
 	ctrl->v_to_c_on_cmds= pt->v_to_c_on_cmds;
 	ctrl->c_to_v_on_cmds= pt->c_to_v_on_cmds;
+#endif
+#if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
+	ctrl->sharpness_on_cmds = pt->sharpness_on_cmds;
+	ctrl->ce_on_cmds = pt->ce_on_cmds;
+#endif
+#if defined(CONFIG_LGE_LCD_DYNAMIC_CABC_MIE_CTRL)
+	ctrl->ie_on_cmds = pt->ie_on_cmds;
+	ctrl->ie_off_cmds = pt->ie_off_cmds;
 #endif
 #if defined(CONFIG_LGE_DISPLAY_LUCYE_COMMON)
 	ctrl->display_on_cmds= pt->display_on_cmds;
@@ -3179,7 +2760,6 @@ static int  mdss_dsi_panel_config_res_properties(struct device_node *np,
 	mdss_dsi_parse_dcs_cmds(np, &pt->on_cmds,
 		"qcom,mdss-dsi-on-command",
 		"qcom,mdss-dsi-on-command-state");
-
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
 	mdss_dsi_parse_dcs_cmds(np, &pt->vcom_cmds,
 		"qcom,mdss-dsi-vcom-command",
@@ -3189,9 +2769,23 @@ static int  mdss_dsi_panel_config_res_properties(struct device_node *np,
 	mdss_dsi_parse_dcs_cmds(np, &pt->display_on_cmds,
 		"qcom,mdss-display-on-command",
 		"qcom,mdss-dsi-on-command-state");
-	mdss_dsi_parse_dcs_cmds(np, &pt->screen_cmds,
-		"qcom,mdss-dsi-screen-command",
+#if defined(CONFIG_LGE_DISPLAY_MFTS_DET_SUPPORTED) && !defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
+	mdss_dsi_parse_dcs_cmds(np, &pt->trimming_cmds,
+		"qcom,mdss-dsi-trimming-set-command",
+		"qcom,mdss-dsi-trimming-set-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &pt->cam_cmds,
+		"qcom,mdss-dsi-cam-set-command",
+		"qcom,mdss-dsi-cam-set-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &pt->screen_cmds_102v,
+		"qcom,mdss-dsi-screen-command-102v",
 		"qcom,mdss-dsi-screen-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &pt->screen_cmds_129v,
+		"qcom,mdss-dsi-screen-command-129v",
+		"qcom,mdss-dsi-screen-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &pt->screen_cmds_132v,
+		"qcom,mdss-dsi-screen-command-132v",
+		"qcom,mdss-dsi-screen-command-state");
+#endif
 #endif
 #if defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
 	mdss_dsi_parse_dcs_cmds(np, &pt->v_to_c_on_cmds,
@@ -3200,6 +2794,22 @@ static int  mdss_dsi_panel_config_res_properties(struct device_node *np,
 	mdss_dsi_parse_dcs_cmds(np, &pt->c_to_v_on_cmds,
 		"qcom,c-to-v-on-command",
 		"qcom,mdss-dsi-on-command-state");
+#endif
+#if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
+	mdss_dsi_parse_dcs_cmds(np, &pt->sharpness_on_cmds,
+		"qcom,mdss-dsi-sharpness-on-command",
+		"qcom,mdss-dsi-common-hs-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &pt->ce_on_cmds,
+		"qcom,mdss-dsi-ce-on-command",
+		"qcom,mdss-dsi-common-hs-command-state");
+#endif
+#if defined(CONFIG_LGE_LCD_DYNAMIC_CABC_MIE_CTRL)
+	mdss_dsi_parse_dcs_cmds(np, &pt->ie_on_cmds,
+		"qcom,mdss-dsi-ie-on-command",
+		"qcom,mdss-dsi-common-hs-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &pt->ie_off_cmds,
+		"qcom,mdss-dsi-ie-off-command",
+		"qcom,mdss-dsi-common-hs-command-state");
 #endif
 #if defined(CONFIG_LGE_DISPLAY_LUCYE_COMMON)
 	mdss_dsi_parse_dcs_cmds(np, &pt->display_on_cmds,
@@ -3222,6 +2832,13 @@ static int  mdss_dsi_panel_config_res_properties(struct device_node *np,
 		"qcom,mdss-dsi-common-hs-command-state");
 	mdss_dsi_parse_dcs_cmds(np, &pt->reg_fbh_cmds,
 		"lge,mdss-dsi-fbh-command",
+		"qcom,mdss-dsi-common-hs-command-state");
+
+	mdss_dsi_parse_dcs_cmds(np, &pt->vgho_vglo_8p8v_cmd,
+		"lge,mdss-dsi-vgho-vglo-8p8v-command",
+		"qcom,mdss-dsi-common-hs-command-state");
+	mdss_dsi_parse_dcs_cmds(np, &pt->vgho_vglo_11p6v_cmd,
+		"lge,mdss-dsi-vgho-vglo-11p6v-command",
 		"qcom,mdss-dsi-common-hs-command-state");
 #endif
 #if defined(CONFIG_LGE_DISPLAY_LINEAR_GAMMA)
@@ -3609,13 +3226,14 @@ static int mdss_panel_parse_dt(struct device_node *np,
 
 	mdss_dsi_parse_dfps_config(np, ctrl_pdata);
 
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+	lge_mdss_panel_parse_dt_extra(np, ctrl_pdata);
+#endif
+
 	rc = mdss_panel_parse_dt_hdmi(np, ctrl_pdata);
 	if (rc)
 		goto error;
 
-#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
-	lge_mdss_panel_parse_dt_extra(np, ctrl_pdata);
-#endif
 	return 0;
 
 error:
@@ -3629,10 +3247,6 @@ int mdss_dsi_panel_init(struct device_node *node,
 	int rc = 0;
 	static const char *panel_name;
 	struct mdss_panel_info *pinfo;
-#if defined(CONFIG_LGE_DISPLAY_COMMON)
-	static struct class *panel = NULL;
-	static struct device *panel_sysfs_dev = NULL;
-#endif
 
 	if (!node || !ctrl_pdata) {
 		pr_err("%s: Invalid arguments\n", __func__);
@@ -3704,7 +3318,6 @@ int mdss_dsi_panel_init(struct device_node *node,
 	if (lge_get_mfts_mode() || (detect_factory_cable() && panel_not_connected))
 		pinfo->power_ctrl = true;
 #endif
-
 	ctrl_pdata->on = mdss_dsi_panel_on;
 	ctrl_pdata->post_panel_on = mdss_dsi_post_panel_on;
 	ctrl_pdata->off = mdss_dsi_panel_off;
@@ -3717,7 +3330,6 @@ int mdss_dsi_panel_init(struct device_node *node,
 #if defined(CONFIG_LGE_LCD_DYNAMIC_CABC_MIE_CTRL)
 	ctrl_pdata->ie_on = 1;
 #endif
-
 #if defined(CONFIG_LGE_DISPLAY_AOD_SUPPORTED)
 	if ((rc = oem_mdss_aod_init(node, ctrl_pdata)))
 		return rc;
@@ -3726,49 +3338,6 @@ int mdss_dsi_panel_init(struct device_node *node,
 	if (ctrl_pdata->panel_data.panel_info.pdest == DISPLAY_1) {
 		if (pdata_base == NULL)
 			pdata_base = &(ctrl_pdata->panel_data);
-	}
-#endif
-#if defined(CONFIG_LGE_DISPLAY_COMMON)
-	if(!panel){
-		panel = class_create(THIS_MODULE, "panel");
-		if (IS_ERR(panel))
-			pr_err("%s: Failed to create panel class\n", __func__);
-	}
-	if(!panel_sysfs_dev){
-		panel_sysfs_dev = device_create(panel, NULL, 0, NULL, "img_tune");
-		if (IS_ERR(panel_sysfs_dev)) {
-			pr_err("%s: Failed to create dev(panel_sysfs_dev)!", __func__);
-		}
-		else{
-#if defined(CONFIG_LGE_ENHANCE_GALLERY_SHARPNESS)
-			if (device_create_file(panel_sysfs_dev, &dev_attr_sharpness) < 0)
-				pr_err("%s: add sharpness tuning node fail!", __func__);
-#endif
-#if defined(CONFIG_LGE_LCD_DYNAMIC_CABC_MIE_CTRL)
-			if (device_create_file(panel_sysfs_dev, &dev_attr_image_enhance_set) < 0)
-				pr_err("%s: add image enhance set node fail!", __func__);
-			if (device_create_file(panel_sysfs_dev, &dev_attr_cabc) < 0)
-				pr_err("%s: add cabc set node fail!", __func__);
-#endif
-#if defined(CONFIG_LGE_DISPLAY_LINEAR_GAMMA)
-			if (device_create_file(panel_sysfs_dev, &dev_attr_linear_gamma) < 0)
-				pr_err("%s: add cabc set node fail!", __func__);
-#endif
-#if defined(CONFIG_LGE_DISPLAY_SRE_MODE)
-			if (device_create_file(panel_sysfs_dev, &dev_attr_sre_mode) < 0)
-				pr_err("%s: add sre set node fail!", __func__);
-			if (device_create_file(panel_sysfs_dev, &dev_attr_daylight_mode) < 0)
-				pr_err("%s: add sre set node fail!", __func__);
-#endif
-#if defined(CONFIG_LGE_DISPLAY_DOLBY_MODE)
-			if (device_create_file(panel_sysfs_dev, &dev_attr_dolby_mode) < 0)
-				pr_err("%s: add dolby node fail!", __func__);
-#endif
-#if defined(CONFIG_LGE_DISPLAY_HDR_MODE)
-			if (device_create_file(panel_sysfs_dev, &dev_attr_hdr_mode) < 0)
-				pr_err("%s: add hdr node fail!", __func__);
-#endif
-		}
 	}
 #endif
 	return 0;

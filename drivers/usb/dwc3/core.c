@@ -703,6 +703,7 @@ static void dwc3_core_exit_mode(struct dwc3 *dwc)
 void dwc3_post_host_reset_core_init(struct dwc3 *dwc)
 {
 	dwc3_core_init(dwc);
+	dwc3_event_buffers_setup(dwc);
 	dwc3_gadget_restart(dwc);
 	dwc3_notify_event(dwc, DWC3_CONTROLLER_POST_INITIALIZATION_EVENT, 0);
 }
@@ -782,6 +783,7 @@ static int dwc3_probe(struct platform_device *pdev)
 	u8			lpm_nyet_threshold;
 	u8			hird_threshold;
 	u32			num_evt_buffs;
+	u32			core_id;
 	int			irq;
 
 	int			ret;
@@ -894,6 +896,11 @@ static int dwc3_probe(struct platform_device *pdev)
 			"snps,num-gsi-evt-buffs", &num_evt_buffs);
 		if (!ret)
 			dwc->num_gsi_event_buffers = num_evt_buffs;
+
+		ret = of_property_read_u32(node,
+				"qcom,usb-core-id", &core_id);
+		if (!ret)
+			dwc->core_id = core_id;
 
 		if (dwc->enable_bus_suspend) {
 			pm_runtime_set_autosuspend_delay(dev, 500);

@@ -472,10 +472,6 @@ int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 	pr_debug("%pS-->%s: cur_power_state=%d req_power_state=%d\n",
 		__builtin_return_address(0), __func__,
 		pinfo->panel_power_state, power_state);
-#if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
-	pr_err("[Display] %s: cur_power_state=%d req_power_state=%d\n", __func__,
-		pinfo->panel_power_state, power_state);
-#endif
 
 	if (pinfo->panel_power_state == power_state) {
 		pr_debug("%s: no change needed\n", __func__);
@@ -1504,6 +1500,9 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 	struct mipi_panel_info *mipi;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	int cur_power_state;
+#if defined(CONFIG_LGE_DISPLAY_MFTS_DET_SUPPORTED) && !defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
+	static int dic_vdds_set = 1;
+#endif
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);

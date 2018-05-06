@@ -69,7 +69,7 @@ int display_panel_type;
 #else
 #if defined(CONFIG_MACH_MSM8996_LUCYE)
 char *rev_str[] = {"evb1", "evb2", "evb3", "rev_0", "rev_01", "rev_02", "rev_03", "rev_04",
-	"rev_a", "rev_b", "rev_c", "rev_d", "rev_10", "rev_11", "rev_12", "rev_13",
+	"rev_a", "rev_b", "rev_c", "rev_d", "rev_10", "rev_11", "rev_12", "rev_13", "rev_14", "rev_15", "rev_16",
 	"reserved"};
 #elif defined(CONFIG_MACH_MSM8996_ELSA)
 char *rev_str[] = {"evb1", "evb2", "evb3", "rev_0", "rev_01", "rev_02", "rev_a", "rev_b",
@@ -282,9 +282,9 @@ static enum lge_boot_mode_type lge_boot_mode = LGE_BOOT_MODE_NORMAL;
 int __init lge_boot_mode_init(char *s)
 {
 	if (!strcmp(s, "charger"))
-		lge_boot_mode = LGE_BOOT_MODE_CHARGER;
+		lge_boot_mode = LGE_BOOT_MODE_NORMAL;
 	else if (!strcmp(s, "chargerlogo"))
-		lge_boot_mode = LGE_BOOT_MODE_CHARGERLOGO;
+		lge_boot_mode = LGE_BOOT_MODE_NORMAL;
 	else if (!strcmp(s, "qem_56k"))
 		lge_boot_mode = LGE_BOOT_MODE_QEM_56K;
 	else if (!strcmp(s, "qem_130k"))
@@ -458,7 +458,7 @@ static int __init lge_check_bootreason(char *reason)
 
 	return 1;
 }
-__setup("lge.bootreason=", lge_check_bootreason);
+__setup("lge.bootreasoncode=", lge_check_bootreason);
 
 int lge_get_bootreason(void)
 {

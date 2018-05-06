@@ -423,7 +423,6 @@ config LGE_BOOT_LOCKUP_DETECT
 	  For detecting lockup in boot , use simple detector which
 	  raise crash when expired some period after boot.
 
-
 config LGE_REBOOT_LOCKUP_DETECT
 	bool "Support to detect lockup during powering off"
 	default n
@@ -432,6 +431,16 @@ config LGE_REBOOT_LOCKUP_DETECT
 	  For detecting lockup in reboot or shutdown, use simple
 	  detector which raise crash when expired some period after
 	  reboot like system call.
+
+config LGE_POWER_ONOFF_LOCKUP_DEBUG
+	bool "Support to debug lockup during powering off"
+	default n
+	depends on LGE_HANDLE_PANIC
+	help
+	  For debugging lockup in reboot or shutdown, use simple
+	  detector which raise crash when expired some period after
+	  reboot like system call.
+
 
 config LGE_BOOTLOADER_LOG
 	tristate "Support LGE bootloader log"
@@ -528,13 +537,6 @@ config LGE_ACC_NT
 	help
 	  Say Y here to enable pseudo mode setting
 
-config LGE_PAY_MME
-    tristate "Support MME driver with QSEE"
-    depends on MACH_LGE
-    default n
-    help
-      Say Y here to enable Mobile Magnetic Emualtor driver for LG pay
-
 config PRE_SELF_DIAGNOSIS
 	tristate "Support LGE self diagnosis for factory"
 	default n
@@ -549,14 +551,6 @@ config LGE_PANEL_MAKER_ID_SUPPORT
 	help
 	  Say Y here to enable Panel Maker ID feature setting
 
-config LGE_QSDL_SUPPORT
-	tristate "Support for Quality Statistics Data Logging"
-	default n
-	depends on MACH_LGE
-	help
-	  QSDL is a feature which notify infomation for quality statistics
-	  data logging of device.
-
 config LGE_DISABLE_SECOND_SCREEN
 	bool "Disable the secondary screen on elsa devices"
 	depends on MACH_MSM8996_ELSA
@@ -566,28 +560,11 @@ config LGE_DISABLE_SECOND_SCREEN
 	  for LGE devices at the time of this writing (progress is being
 	  made for other Android versions though).
 
-endmenu
-
-menu "LGE QFPROM Values"
-
-config LGE_QFPROM_INTERFACE
-	bool "Support qfprom interface"
-	default n
+config LGE_MSM8996_ENABLE_VENDOR
+	bool "Enables using the vendor partition"
 	depends on MACH_LGE
 	help
-	  LGE QFPROM DRIVER.
-
-config LGE_QFPROM_SECHASH
-	string "Support qfprom sec hash"
-	default 0x0
-	depends on LGE_QFPROM_INTERFACE
-	help
-	  LGE QFPROM DRIVER-SEC partition's hash value.
-
-config LGE_PM_UNIFIED_NODE
-	bool "enable LGE PM Unified sysfs node"
-	help
-	  Support LGE PM Unified sysfs node
+	  Enables the /vendor partition in device-tree fstab
 
 endmenu
 

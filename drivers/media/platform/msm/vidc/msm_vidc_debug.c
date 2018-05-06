@@ -17,7 +17,7 @@
 #include "msm_vidc_debug.h"
 #include "vidc_hfi_api.h"
 
-int msm_vidc_debug = 0;
+int msm_vidc_debug = VIDC_ERR | VIDC_WARN;
 int msm_vidc_debug_out = VIDC_OUT_PRINTK;
 int msm_vidc_fw_debug = 0x18;
 int msm_vidc_fw_debug_mode = 1;
@@ -361,11 +361,11 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 		cur += write_str(cur, end - cur, "capability: %s\n",
 			i == OUTPUT_PORT ? "Output" : "Capture");
 		cur += write_str(cur, end - cur, "name : %s\n",
-			inst->fmts[i]->name);
+			inst->fmts[i].name);
 		cur += write_str(cur, end - cur, "planes : %d\n",
-			inst->fmts[i]->num_planes);
+			inst->fmts[i].num_planes);
 		cur += write_str(cur, end - cur,
-			"type: %s\n", i == OUTPUT_PORT ?
+			"type: %s\n", inst->fmts[i].type == OUTPUT_PORT ?
 			"Output" : "Capture");
 
 		switch (inst->buffer_mode_set[i]) {
@@ -389,7 +389,7 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 		cur += write_str(cur, end - cur, "count: %u\n",
 				inst->bufq[i].vb2_bufq.num_buffers);
 
-		for (j = 0; j < inst->fmts[i]->num_planes; j++)
+		for (j = 0; j < inst->fmts[i].num_planes; j++)
 			cur += write_str(cur, end - cur,
 			"size for plane %d: %u\n", j,
 			inst->bufq[i].vb2_bufq.plane_sizes[j]);
