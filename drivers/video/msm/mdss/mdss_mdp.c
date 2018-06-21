@@ -1778,6 +1778,10 @@ static void mdss_mdp_hw_rev_caps_init(struct mdss_data_type *mdata)
 			ARRAY_SIZE(invalid_mdp107_wb_output_fmts),
 			VALID_MDP_WB_INTF_FORMAT);
 	case MDSS_MDP_HW_REV_107_2:
+#ifdef CONFIG_LGE_DISPLAY_COMMON
+		/* disable ECG for 28nm PHY platform */
+		mdata->enable_gate = false;
+#endif
 		mdata->max_target_zorder = 7; /* excluding base layer */
 		mdata->max_cursor_size = 128;
 		mdata->per_pipe_ib_factor.numer = 8;

@@ -33,9 +33,6 @@
 
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
 #include "lge/lge_mdss_display.h"
-#include <soc/qcom/lge/board_lge.h>
-extern int panel_not_connected;
-int detect_factory_cable(void);
 #endif
 
 #if defined(CONFIG_LGE_DISPLAY_BL_EXTENDED)
@@ -3314,10 +3311,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 	pinfo->is_lpm_mode = false;
 	pinfo->esd_rdy = false;
 	pinfo->persist_mode = false;
-#ifdef CONFIG_LGE_LCD_MFTS_MODE
-	if (lge_get_mfts_mode() || (detect_factory_cable() && panel_not_connected))
-		pinfo->power_ctrl = true;
-#endif
+
 	ctrl_pdata->on = mdss_dsi_panel_on;
 	ctrl_pdata->post_panel_on = mdss_dsi_post_panel_on;
 	ctrl_pdata->off = mdss_dsi_panel_off;

@@ -1359,7 +1359,6 @@ void mdss_mdp_handoff_cleanup_pipes(struct msm_fb_data_type *mfd,
 	}
 }
 
-#define DISABLE_IDLE_PC_FIRST_UPDATE /*patch for wait4pingpong(CASE#2180768)*/
 /**
  * mdss_mdp_overlay_start() - Programs the MDP control data path to hardware
  * @mfd: Msm frame buffer structure associated with fb device.
@@ -1375,19 +1374,6 @@ int mdss_mdp_overlay_start(struct msm_fb_data_type *mfd)
 	struct mdss_overlay_private *mdp5_data = mfd_to_mdp5_data(mfd);
 	struct mdss_mdp_ctl *ctl = mdp5_data->ctl;
 	struct mdss_data_type *mdata = mfd_to_mdata(mfd);
-
-#ifdef DISABLE_IDLE_PC_FIRST_UPDATE
-	static int count = 0;
-
-if( mfd->panel_info->type == MIPI_CMD_PANEL )
-{
-	if(((ctl->play_cnt)== 2) && (count==1))
-	{
-		rc = pm_runtime_put_sync(&mfd->pdev->dev);
-		count++;
-	}
-}
-#endif
 
 	if (mdss_mdp_ctl_is_power_on(ctl)) {
 		if (!mdp5_data->mdata->batfet)
@@ -1421,18 +1407,6 @@ if( mfd->panel_info->type == MIPI_CMD_PANEL )
 	 * If idle pc feature is not enabled, then get a reference to the
 	 * runtime device which will be released when overlay is turned off
 	 */
-#ifdef DISABLE_IDLE_PC_FIRST_UPDATE
- 	if (mfd->panel_info->type == MIPI_CMD_PANEL) {
- 	 	if(count == 0) {
-		 	rc = pm_runtime_get_sync(&mfd->pdev->dev);
-		 	count++;
-	    	if (IS_ERR_VALUE(rc)) {
-			 	 	pr_err("unable to resume with pm_runtime_get_sync rc=%d\n", rc);
-			 	 	goto end;
-	    	}
-	  	}
- 	} else {
-#endif
 	if (!mdp5_data->mdata->idle_pc_enabled ||
 		(mfd->panel_info->type != MIPI_CMD_PANEL)) {
 		rc = pm_runtime_get_sync(&mfd->pdev->dev);
@@ -1442,9 +1416,6 @@ if( mfd->panel_info->type == MIPI_CMD_PANEL )
 			goto end;
 		}
 	}
-#ifdef DISABLE_IDLE_PC_FIRST_UPDATE
- 	}
-#endif
 
 	/*
 	 * We need to do hw init before any hw programming.
@@ -2113,6 +2084,17 @@ set_roi:
 						ctl->mixer_right->height};
 				}
 				pr_info("[Watch] Don't send AOD command if font download is fail!!\n");
+			}
+		}
+		else if (mfd->watch.set_roi) {
+			oem_mdss_aod_cmd_send(mfd, AOD_CMD_ENABLE);
+			l_roi = (struct mdss_rect){0, SKIP_ROI_SIZE,
+			ctl->mixer_left->width,
+			ctl->mixer_left->height-SKIP_ROI_SIZE};
+			if (ctl->mixer_right) {
+					r_roi = (struct mdss_rect) {0, SKIP_ROI_SIZE,
+						ctl->mixer_right->width,
+						ctl->mixer_right->height-SKIP_ROI_SIZE};
 			}
 		}
 #endif

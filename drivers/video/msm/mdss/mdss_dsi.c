@@ -37,19 +37,10 @@
 #define XO_CLK_RATE	19200000
 #define CMDLINE_DSI_CTL_NUM_STRING_LEN 2
 
-#if defined(CONFIG_LGE_DISPLAY_COMMON)
-#include <linux/mfd/dw8768_dsv.h>
-#include <soc/qcom/lge/board_lge.h>
-#include <linux/regulator/driver.h>
-#include <linux/input/lge_touch_notify.h>
-int panel_not_connected;
-int skip_lcd_error_check;
-int laf_mode_check;
-#endif
-
 #ifdef CONFIG_LGE_DISPLAY_COMMON
 #include "lge/lge_mdss_display.h"
 #endif
+
 /* Master structure to hold all the information about the DSI/panel */
 static struct mdss_dsi_data *mdss_dsi_res;
 
@@ -290,28 +281,6 @@ static int mdss_dsi_regulator_init(struct platform_device *pdev,
 	return rc;
 }
 
-#if defined(CONFIG_LGE_DISPLAY_COMMON)
-int detect_factory_cable(void)
-{
-	int factory_cable = 0;
-
-	switch (lge_get_boot_mode()) {
-		case LGE_BOOT_MODE_QEM_56K:
-		case LGE_BOOT_MODE_QEM_130K:
-		case LGE_BOOT_MODE_QEM_910K:
-		case LGE_BOOT_MODE_PIF_56K:
-		case LGE_BOOT_MODE_PIF_130K:
-		case LGE_BOOT_MODE_PIF_910K:
-			factory_cable = 1;
-			break;
-		default:
-			break;
-	}
-
-	return factory_cable;
-}
-#endif
-
 #if IS_ENABLED(CONFIG_LGE_DISPLAY_OVERRIDE_MDSS_DSI_PANEL_POWER_OFF)
 /*
  * mdss_dsi_panel_power_off() should be defined in other file.
@@ -459,7 +428,11 @@ static int mdss_dsi_panel_power_ulp(struct mdss_panel_data *pdata,
 int mdss_dsi_panel_power_ctrl(struct mdss_panel_data *pdata,
 	int power_state)
 {
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+	int ret = 0;
+#else
 	int ret;
+#endif
 	struct mdss_panel_info *pinfo;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 
@@ -1500,9 +1473,6 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 	struct mipi_panel_info *mipi;
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	int cur_power_state;
-#if defined(CONFIG_LGE_DISPLAY_MFTS_DET_SUPPORTED) && !defined(CONFIG_LGE_DISPLAY_DYN_DSI_MODE_SWITCH)
-	static int dic_vdds_set = 1;
-#endif
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -1698,15 +1668,9 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 				panel_data);
 	mipi  = &pdata->panel_info.mipi;
 
-#if defined(CONFIG_LGE_DISPLAY_COMMON)
-	pr_err("[Display] %s+: ctrl=%pK ndx=%d cur_power_state=%d ctrl_state=%x\n",
-	        __func__, ctrl_pdata, ctrl_pdata->ndx,
-	    pdata->panel_info.panel_power_state, ctrl_pdata->ctrl_state);
-#else
 	pr_debug("%s+: ctrl=%pK ndx=%d cur_power_state=%d ctrl_state=%x\n",
 			__func__, ctrl_pdata, ctrl_pdata->ndx,
 		pdata->panel_info.panel_power_state, ctrl_pdata->ctrl_state);
-#endif
 
 	mdss_dsi_pm_qos_update_request(DSI_DISABLE_PC_LATENCY);
 
@@ -2156,7 +2120,11 @@ static int __mdss_dsi_dfps_update_clks(struct mdss_panel_data *pdata,
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_dsi_ctrl_pdata *sctrl_pdata = NULL;
+#if IS_ENABLED(CONFIG_LGE_DISPLAY_COMMON)
+	struct mdss_panel_info *pinfo, *spinfo = NULL;
+#else
 	struct mdss_panel_info *pinfo, *spinfo;
+#endif
 	int rc = 0;
 
 	if (pdata == NULL) {
@@ -2789,7 +2757,9 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 		break;
 	case MDSS_EVENT_PANEL_OFF:
 		power_state = (int) (unsigned long) arg;
+#ifndef CONFIG_LGE_DISPLAY_COMMON
 		disable_esd_thread();
+#endif
 		ctrl_pdata->ctrl_state &= ~CTRL_STATE_MDP_ACTIVE;
 		if (ctrl_pdata->off_cmds.link_state == DSI_LP_MODE)
 			rc = mdss_dsi_blank(pdata, power_state);
@@ -2899,7 +2869,7 @@ notify:
 			usleep_range(60000,60000);
 			if(touch_notifier_call_chain(LCD_EVENT_LCD_MODE,
 								(void *)&param))
-				pr_err("[AOD] Failt to send notify to touch\n");
+				pr_err("[AOD] Failed to send notify to touch\n");
 		}
 	}
 	pr_debug("%s-:event=%d, rc=%d\n", __func__, event, rc);
@@ -3027,15 +2997,6 @@ static struct device_node *mdss_dsi_find_panel_of_node(
 				panel_name[i] = *(str1 + i);
 			panel_name[i] = 0;
 		}
-#if defined(CONFIG_LGE_DISPLAY_LUCYE_COMMON)
-		panel_not_connected = lge_get_lk_panel_status();
-		laf_mode_check = strcmp(lge_get_boot_partition(), "laf");
-		if ((panel_not_connected && !laf_mode_check  && !lge_get_mfts_mode())) {
-			pr_err("%s: laf mode detected panel init skip[%d]\n",
-				__func__, panel_not_connected);
-			goto exit;
-		}
-#endif
 		pr_info("%s: cmdline:%s panel_name:%s\n",
 			__func__, panel_cfg, panel_name);
 		if (!strcmp(panel_name, NONE_PANEL))
@@ -4283,7 +4244,6 @@ static int mdss_dsi_parse_gpio_params(struct platform_device *ctrl_pdev,
 		pr_debug("%s:%d, intf mux gpio not specified\n",
 						__func__, __LINE__);
 
-
 #if defined(CONFIG_LGE_DISPLAY_COMMON)
 	/* Only HDK uses LGD RSP panel & needs DSV en gpio. */
 	if (pinfo->panel_type == LGD_R69007_INCELL_CMD_PANEL) {
@@ -4294,18 +4254,6 @@ static int mdss_dsi_parse_gpio_params(struct platform_device *ctrl_pdev,
 
 	if (gpio_request(ctrl_pdata->rst_gpio, "disp_rst-n"))
 		pr_err("request reset gpio failed\n");
-
-	panel_not_connected = lge_get_lk_panel_status();
-	pr_debug("%s: lk panel init fail[%d]\n",
-			__func__, panel_not_connected);
-
-	if (detect_factory_cable()){
-		pr_info("boot mode : factory cable detected\n");
-		if (!lge_get_mfts_mode() && panel_not_connected){
-			skip_lcd_error_check = 1;
-			pr_info("no MFTS and panel not connected. will skip lcd error check routine\n");
-		}
-	}
 #endif
 	return 0;
 }
@@ -4462,7 +4410,6 @@ int dsi_panel_device_register(struct platform_device *ctrl_pdev,
 	 */
 	sdata = ctrl_pdata->shared_data;
 
-#ifndef CONFIG_LGE_DISPLAY_COMMON
 	if (pinfo->ulps_suspend_enabled) {
 		rc = msm_dss_enable_vreg(
 			sdata->power_data[DSI_PHY_PM].vreg_config,
@@ -4473,7 +4420,6 @@ int dsi_panel_device_register(struct platform_device *ctrl_pdev,
 			return rc;
 		}
 	}
-#endif
 
 	pinfo->cont_splash_enabled =
 		ctrl_pdata->mdss_util->panel_intf_status(pinfo->pdest,
